@@ -15,7 +15,7 @@ impl<'a> Handler<'a> {
     }
 }
 
-impl<'a> super::ApplyHandler for Handler<'a> {
+impl super::ApplyHandler for Handler<'_> {
     fn download_operation_path(&self) -> PathBuf {
         self.ctx.download_operation_path()
     }
@@ -26,7 +26,8 @@ impl<'a> super::ApplyHandler for Handler<'a> {
     fn add(&mut self, op: &metadata::v1::Add) -> io::Result<Option<Box<dyn Applier>>> {
         let tmp_path = self.ctx.tmp_operation_path();
         let final_path = self.ctx.final_path(&op.common.path);
-        let tmp_file = fs::OpenOptions::new().write(true).create(true).open(&tmp_path)?;
+        let tmp_file =
+            fs::OpenOptions::new().write(true).create(true).truncate(true).open(&tmp_path)?;
         io::set_exe_permission(&tmp_file, op.common.exe)?;
         let decoder = CheckCoder::decoder(&op.data_compression, tmp_file)?;
         let applier = WriteApplier {
@@ -49,8 +50,12 @@ impl<'a> super::ApplyHandler for Handler<'a> {
 
         let local_file = fs::OpenOptions::new().read(true).write(true).open(&final_path)?;
         let tmp_path = self.ctx.tmp_operation_path();
-        let tmp_file =
-            fs::OpenOptions::new().write(true).read(true).create(true).open(&tmp_path)?;
+        let tmp_file = fs::OpenOptions::new()
+            .write(true)
+            .read(true)
+            .create(true)
+            .truncate(true)
+            .open(&tmp_path)?;
         io::set_exe_permission(&tmp_file, op.common.exe)?;
         let decoder =
             CheckCoder::patch_decoder(&op.data_compression, &op.patch_type, local_file, tmp_file)?;
@@ -72,7 +77,7 @@ impl<'a> super::ApplyHandler for Handler<'a> {
         }
 
         let path = self.ctx.final_path(&op.common.path);
-        let file = fs::OpenOptions::new().read(true).open(&path)?;
+        let file = fs::OpenOptions::new().read(true).open(path)?;
         let size = file.metadata()?.len();
         io::assert_eq(size, op.local_size, "local size")?;
         io::set_exe_permission(&file, op.common.exe)?;

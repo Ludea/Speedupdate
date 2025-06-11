@@ -5,8 +5,7 @@
 //! - `current`: a very small JSON file with informations about the current version.
 //! - `versions`: a JSON file with informations about all versions.
 //! - `packages`: a JSON file that list available packages (i.e. the update graph).
-//! - `$package_name.metadata`: a JSON file with precise informations about a package
-//!    and how to apply it.
+//! - `$package_name.metadata`: a JSON file with precise informations about a package and how to apply it.
 //! - `$package_name`: a binary file containing package update operations data.
 //!
 //! ## Safety
@@ -74,11 +73,13 @@ impl Repository {
                 .find(|v| &v.revision == version)
                 .map(|v| metadata::Current::V1 { current: v }),
         }
-        .ok_or(io::Error::new(
-            io::ErrorKind::InvalidInput,
-            format!("version {} doesn't exists", version),
-        ))?;
-        io::atomic_write_json(&self.dir.join(metadata::Current::filename()), &version)?;
+        .ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("version {} doesn't exists", version),
+            )
+        })?;
+        io::atomic_write_json(self.dir.join(metadata::Current::filename()), &version)?;
         Ok(())
     }
 
@@ -102,7 +103,7 @@ impl Repository {
                 .collect(),
         };
         let versions = Versions::V1 { versions };
-        io::atomic_write_json(&self.dir.join(metadata::Versions::filename()), &versions)?;
+        io::atomic_write_json(self.dir.join(metadata::Versions::filename()), &versions)?;
         Ok(())
     }
 
@@ -116,13 +117,41 @@ impl Repository {
             }
         };
         let versions = Versions::V1 { versions };
-        io::atomic_write_json(&self.dir.join(metadata::Versions::filename()), &versions)?;
+        io::atomic_write_json(self.dir.join(metadata::Versions::filename()), &versions)?;
         Ok(())
     }
 
     pub fn packages(&self) -> io::Result<metadata::Packages> {
         serde_json::from_reader(fs::File::open(self.dir.join(metadata::Packages::filename()))?)
             .map_err(io::Error::from)
+    }
+
+    pub fn available_packages(&self, build_dir: String) -> io::Result<Vec<String>> {
+        let mut local_files = Vec::new();
+        let mut registered_packages = Vec::new();
+        if let Ok(entries) = fs::read_dir(self.dir.join(build_dir)) {
+            for entry in entries.flatten() {
+                let path = entry.path();
+                let extension = path.extension().and_then(std::ffi::OsStr::to_str);
+                if extension == Some("0") {
+                    if let Some(file) = entry.file_name().to_str() {
+                        if file.starts_with("complete_") {
+                            local_files.push(file.to_string());
+                        }
+                    }
+                }
+            }
+        }
+        if let Ok(registered_local_packages) = self.packages() {
+            for pack in registered_local_packages.iter() {
+                registered_packages.push(pack.package_data_name().to_string());
+            }
+        }
+
+        let available_packages =
+            local_files.into_iter().filter(|pack| !registered_packages.contains(pack)).collect();
+
+        Ok(available_packages)
     }
 
     pub fn package_metadata(
@@ -145,7 +174,7 @@ impl Repository {
                 .collect(),
         };
         let packages = Packages::V1 { packages };
-        io::atomic_write_json(&self.dir.join(metadata::Versions::filename()), &packages)?;
+        io::atomic_write_json(self.dir.join(metadata::Packages::filename()), &packages)?;
         Ok(())
     }
 
@@ -159,7 +188,7 @@ impl Repository {
             }
         };
         let packages = Packages::V1 { packages };
-        io::atomic_write_json(&self.dir.join(metadata::Versions::filename()), &packages)?;
+        io::atomic_write_json(self.dir.join(metadata::Packages::filename()), &packages)?;
         Ok(())
     }
 }
@@ -169,7 +198,7 @@ where
     T: Serialize,
 {
     if fs::metadata(path).is_err() {
-        let file = fs::File::create(&path)?;
+        let file = fs::File::create(path)?;
         serde_json::to_writer_pretty(file, value)?;
     }
     Ok(())

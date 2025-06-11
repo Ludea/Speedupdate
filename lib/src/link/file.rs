@@ -23,7 +23,8 @@ impl FileRepository {
     where
         T: for<'de> serde::Deserialize<'de>,
     {
-        let path = self.dir.join(&file_name);
+        println!("one more from file");
+        let path = self.dir.join(file_name);
         let raw = tokio::fs::read(&path).await.map_err(|err| RepositoryError::file(&path, err))?;
         let decoded =
             serde_json::from_slice::<T>(&raw).map_err(|err| RepositoryError::json(&path, err))?;
@@ -68,10 +69,7 @@ impl RemoteRepository for FileRepository {
         if new_pos != range.start {
             return Err(RepositoryError::file(
                 &path,
-                std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    "failed to seek at the correct position",
-                ),
+                std::io::Error::other("failed to seek at the correct position"),
             ));
         }
 

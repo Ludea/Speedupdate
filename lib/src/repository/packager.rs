@@ -72,7 +72,7 @@ impl fmt::Display for BuildError {
 impl std::error::Error for BuildError {}
 
 pub type BuildProgressStream<'a> =
-    Pin<Box<dyn Stream<Item = Result<SharedBuildProgress, BuildError>> + 'a>>;
+    Pin<Box<dyn Stream<Item = Result<SharedBuildProgress, BuildError>> + 'a + Send>>;
 
 impl PackageBuilder {
     pub fn new(
@@ -200,6 +200,7 @@ impl PackageBuilder {
                         Ok((i, op))
                     })
                 })
+                .boxed()
                 .buffer_unordered(self.num_threads.get())
                 .map(|res| match res {
                     Ok(v) => v,
@@ -332,7 +333,7 @@ impl PackageBuilder {
             txs.push(tx);
             let progression = progression.clone();
             rxs.push(rx.map(move |(delta, progress)| {
-                let mut p = progression.borrow_mut();
+                let mut p = progression.lock();
                 p.processed_bytes += delta;
                 p.workers[thread_idx] = progress;
                 drop(p);
@@ -343,28 +344,29 @@ impl PackageBuilder {
         let rx_stream = stream::select_all(rxs);
         let w_stream = self.execute(txs).map(|_| stream::empty()).flatten_stream();
 
-        stream::select(rx_stream, w_stream).boxed_local()
+        stream::select(rx_stream, w_stream).boxed()
     }
 }
 
 fn err(msg: &str) -> io::Error {
     error!("{}", msg);
-    io::Error::new(io::ErrorKind::Other, msg)
+    io::Error::other(msg)
 }
 
 #[cfg(unix)]
 fn is_exe(_filename: &str, metadata: &fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt;
-    return metadata.permissions().mode() & 0o111 > 0;
+    metadata.permissions().mode() & 0o111 > 0
 }
 
 #[cfg(not(unix))]
 fn is_exe(filename: &str, _metadata: &fs::Metadata) -> bool {
-    return filename.ends_with(".exe");
+    filename.ends_with(".exe")
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FileType {
+    #[default]
     None,
     Dir,
     File,
@@ -396,12 +398,6 @@ impl FileType {
 
     fn is_exe(self) -> bool {
         matches!(self, FileType::Exe)
-    }
-}
-
-impl Default for FileType {
-    fn default() -> Self {
-        FileType::None
     }
 }
 
@@ -511,8 +507,10 @@ impl BuildTaskCtx {
     }
 }
 
+type BuildTaskBuilderResult =
+    Box<dyn FnOnce(&mut BuildTaskCtx) -> Result<BuiltOperation, BuildError> + Send>;
 struct BuildTaskBuilder {
-    tasks: Vec<Box<dyn FnOnce(&mut BuildTaskCtx) -> Result<BuiltOperation, BuildError> + Send>>,
+    tasks: Vec<BuildTaskBuilderResult>,
 }
 
 impl BuildTaskBuilder {
@@ -770,7 +768,7 @@ struct Slice {
 
 impl Slice {
     fn open(&self) -> io::Result<io::Slice<fs::File>> {
-        Ok(io::Slice::new(fs::File::open(&self.src_path)?, self.offset, self.size)?)
+        io::Slice::new(fs::File::open(&self.src_path)?, self.offset, self.size)
     }
 }
 
@@ -848,7 +846,7 @@ fn ue4pak_slices(
         prev = cut;
     }
     let slice = Slice {
-        common: metadata::v1::Common { slice: Some(prev.1), ..common.clone() },
+        common: metadata::v1::Common { slice: Some(prev.1), ..common },
         src_path,
         tmp_path,
         offset: prev.0,
@@ -903,7 +901,7 @@ fn patch_file(
                 break;
             }
             src_file.read_exact(&mut src_buffer[..read])?;
-            are_equals = &src_buffer[..read] == &pre_buffer[..read];
+            are_equals = src_buffer[..read] == pre_buffer[..read];
         }
         if are_equals {
             // same content

@@ -180,9 +180,8 @@ impl<'a> Handler<'a> {
                 op.local_sha1.clone(),
             ),
             _ => {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("ue4pak is only support for add, patch and check operations"),
+                return Err(io::Error::other(
+                    "ue4pak is only support for add, patch and check operations".to_string(),
                 ))
             }
         };
@@ -190,7 +189,7 @@ impl<'a> Handler<'a> {
     }
 }
 
-impl<'a> super::ApplyHandler for Handler<'a> {
+impl super::ApplyHandler for Handler<'_> {
     fn download_operation_path(&self) -> PathBuf {
         self.ctx.download_operation_path()
     }
@@ -337,7 +336,7 @@ impl<'a> super::ApplyHandler for Handler<'a> {
 
                 let final_path = self.ctx.final_path(&self.path);
                 io::remove_file(&final_path)?;
-                fs::rename(&self.ctx.tmp_operation_path(), &final_path)?;
+                fs::rename(self.ctx.tmp_operation_path(), &final_path)?;
 
                 Ok(None)
             }

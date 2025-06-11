@@ -20,9 +20,9 @@ pub struct HandlerContext<'a> {
     pub update_options: &'a UpdateOptions,
 }
 
-impl<'a> HandlerContext<'a> {
+impl HandlerContext<'_> {
     pub fn final_path(&self, path: &metadata::CleanPath) -> PathBuf {
-        self.file_manager.dir().join(&path)
+        self.file_manager.dir().join(path)
     }
 
     pub fn tmp_operation_path(&self) -> PathBuf {
@@ -68,6 +68,7 @@ pub trait ApplyOperation: Operation {
 /// Some handlers might not support every operation or slices. For example, the
 /// direct handler doesn't support slices and the slice handler doesn't support
 /// mkdir and rmdir.
+#[allow(dead_code)]
 pub trait ApplyHandler {
     fn download_operation_path(&self) -> PathBuf;
     fn try_still_compatible(&mut self, path: &metadata::CleanPath, operation_idx: usize) -> bool;
@@ -239,13 +240,13 @@ impl ApplyOperation for metadata::v1::Operation {
                 return Ok(Box::new(handler));
             }
 
-            return Err(io::Error::new(
-                io::ErrorKind::Other,
-                format!("slice handler {} isn't supported!", handler_name),
-            ));
+            return Err(io::Error::other(format!(
+                "slice handler {} isn't supported!",
+                handler_name
+            )));
         }
 
-        return Ok(Box::new(DefaultHandler::new(ctx)));
+        Ok(Box::new(DefaultHandler::new(ctx)))
     }
 
     fn begin_apply<'a>(

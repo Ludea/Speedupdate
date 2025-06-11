@@ -1,19 +1,20 @@
 use std::io::{self, Write};
 
-pub use brotli::write::BrotliDecoder;
-pub use brotli::write::BrotliEncoder;
+pub use brotli::CompressorWriter;
+pub use brotli::DecompressorWriter;
 
 use super::Coder;
 
-impl<W: Write> Coder<W> for BrotliDecoder<W> {
+impl<W: Write> Coder<W> for DecompressorWriter<W> {
     fn get_mut(&mut self) -> &mut W {
-        BrotliDecoder::get_mut(self)
+        DecompressorWriter::get_mut(self)
     }
 
-    fn finish(mut self) -> std::io::Result<W> {
-        BrotliDecoder::finish(&mut self).map_err(|_| {
-            io::Error::new(io::ErrorKind::Other, "brotli decoder failed to finalize stream")
-        })
+    fn finish(mut self) -> io::Result<W> {
+        self.flush()?;
+        DecompressorWriter::finish(self)
+            .map_err(|_| io::Error::other("brotli decoder failed to finalize stream"))
+        //Ok(DecompressorWriter::into_inner(self))
     }
 
     fn finish_boxed(self: Box<Self>) -> io::Result<W> {
@@ -21,16 +22,14 @@ impl<W: Write> Coder<W> for BrotliDecoder<W> {
     }
 }
 
-impl<W: Write> Coder<W> for BrotliEncoder<W> {
+impl<W: Write> Coder<W> for CompressorWriter<W> {
     fn get_mut(&mut self) -> &mut W {
-        BrotliEncoder::get_mut(self)
+        CompressorWriter::get_mut(self)
     }
 
-    fn finish(mut self) -> std::io::Result<W> {
+    fn finish(mut self) -> io::Result<W> {
         self.flush()?;
-        BrotliEncoder::finish(self).map_err(|_| {
-            io::Error::new(io::ErrorKind::Other, "brotli encoder failed to finalize stream")
-        })
+        Ok(CompressorWriter::into_inner(self))
     }
 
     fn finish_boxed(self: Box<Self>) -> io::Result<W> {

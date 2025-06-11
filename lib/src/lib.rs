@@ -30,13 +30,13 @@ pub mod tests {
     #[derive(Eq, PartialEq)]
     pub struct Bytes<'a>(pub &'a [u8]);
 
-    impl<'a> fmt::Debug for Bytes<'a> {
+    impl fmt::Debug for Bytes<'_> {
         fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
             fmt::Display::fmt(self, f)
         }
     }
 
-    impl<'a> fmt::Display for Bytes<'a> {
+    impl fmt::Display for Bytes<'_> {
         fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
             write!(fmt, "b\"")?;
             for &byte in self.0.iter() {
@@ -75,10 +75,10 @@ pub mod tests {
                 .map(|res| res.map(|e| e.file_name()))
                 .collect::<Result<BTreeSet<_>, _>>()
                 .unwrap();
-            for e in dir0.difference(&dir1) {
+            if let Some(e) = dir0.difference(&dir1).next() {
                 panic!("{:?} is not present in {:?}", e, path1);
             }
-            for e in dir1.difference(&dir0) {
+            if let Some(e) = dir1.difference(&dir0).next() {
                 panic!("{:?} is not present in {:?}", e, path0);
             }
             for (filename0, filename1) in dir0.iter().zip(dir1.iter()) {
@@ -104,7 +104,7 @@ pub mod tests {
 
         let mut options = fs_extra::dir::CopyOptions::new();
         options.content_only = true;
-        fs_extra::dir::copy(&data_path, &tmp_path, &options).unwrap();
+        fs_extra::dir::copy(data_path, &tmp_path, &options).unwrap();
 
         tmp_path
     }
@@ -117,7 +117,6 @@ pub mod tests {
     }
 
     pub fn data(name: &str) -> PathBuf {
-        let path = PathBuf::from("tests/data").join(name);
-        path
+        PathBuf::from("tests/data").join(name)
     }
 }

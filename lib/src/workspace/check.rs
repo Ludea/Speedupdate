@@ -40,7 +40,7 @@ impl fmt::Display for CheckError {
     }
 }
 
-pub(crate) async fn check<'a>(
+pub(crate) async fn check(
     workspace: &mut Workspace,
 ) -> Result<impl Stream<Item = Result<SharedCheckProgress, CheckError>> + '_, CheckError> {
     if matches!(workspace.state(), metadata::v1::State::New) {
@@ -108,7 +108,7 @@ pub(crate) async fn check<'a>(
             _ => Ok(()),
         };
         let res = match res {
-            Ok(()) => Ok(global_progression_c.clone()),
+            Ok(()) => Ok(global_progression_c),
             Err(err) => Err(CheckError::LocalStateError(err)),
         };
         stream::once(async { res })

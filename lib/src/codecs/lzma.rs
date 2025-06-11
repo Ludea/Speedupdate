@@ -11,7 +11,7 @@ pub struct Writer<W: io::Write> {
 
 impl<W: io::Write> Writer<W> {
     pub fn decompressor(w: W) -> Result<Self, io::Error> {
-        Ok(Self { w, raw: Stream::new_lzma_decoder(u64::max_value())?, is_encoder: false })
+        Ok(Self { w, raw: Stream::new_lzma_decoder(u64::MAX)?, is_encoder: false })
     }
 
     pub fn compressor(w: W, preset: u32) -> Result<Self, io::Error> {
@@ -50,7 +50,7 @@ impl<W: io::Write> io::Write for Writer<W> {
     fn write(&mut self, mut input: &[u8]) -> io::Result<usize> {
         let mut buffer = [0u8; io::BUFFER_SIZE];
         let mut written = 0;
-        while input.len() > 0 {
+        while !input.is_empty() {
             let before_in = self.raw.total_in();
             let before_out = self.raw.total_out();
             let res = self.raw.process(input, &mut buffer, Action::Run)?;

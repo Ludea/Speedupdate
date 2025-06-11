@@ -57,7 +57,7 @@ pub struct CheckProgression {
     pub failed_files: usize,
 }
 
-impl<'a, 'b> Add<&'a CheckProgression> for &'b CheckProgression {
+impl<'a> Add<&'a CheckProgression> for &CheckProgression {
     type Output = CheckProgression;
 
     fn add(self, other: &'a CheckProgression) -> CheckProgression {
@@ -79,7 +79,7 @@ impl<'a> AddAssign<&'a CheckProgression> for CheckProgression {
     }
 }
 
-impl<'a, 'b> Sub<&'a CheckProgression> for &'b CheckProgression {
+impl<'a> Sub<&'a CheckProgression> for &CheckProgression {
     type Output = CheckProgression;
 
     fn sub(self, other: &'a CheckProgression) -> CheckProgression {
@@ -119,7 +119,7 @@ impl CheckProgress {
     }
 
     pub fn current_operation(&self) -> Option<&dyn Operation> {
-        let op = self.metadata.iter().skip(self.checking_operation_idx).next()?;
+        let op = self.metadata.iter().nth(self.checking_operation_idx)?;
         Some(op)
     }
 }
@@ -143,20 +143,15 @@ impl SharedUpdateProgress {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub enum UpdateStage {
+    #[default]
     FindingUpdatePath,
     Updating,
     FindingRepairPath,
     Repairing,
     Uptodate,
     Failed,
-}
-
-impl Default for UpdateStage {
-    fn default() -> Self {
-        UpdateStage::FindingUpdatePath
-    }
 }
 
 pub struct UpdateFailure {
@@ -232,7 +227,7 @@ impl UpdateProgress {
 
     pub fn current_step_operation(&self, operation_idx: usize) -> Option<&dyn Operation> {
         let step = self.current_step()?;
-        let op = step.metadata.iter().skip(operation_idx).next()?;
+        let op = step.metadata.iter().nth(operation_idx)?;
         Some(op)
     }
 
@@ -255,8 +250,8 @@ impl UpdateProgress {
         filter: &UpdateFilter,
     ) {
         let (mut available, mut applied, check_only) = (
-            first_package_state.available.clone(),
-            first_package_state.applied.clone(),
+            first_package_state.available,
+            first_package_state.applied,
             first_package_state.check_only,
         );
         for package_metadata in packages_metadata.iter() {
@@ -364,7 +359,7 @@ pub struct Progression {
     pub failed_files: usize,
 }
 
-impl<'a, 'b> Add<&'a Progression> for &'b Progression {
+impl<'a> Add<&'a Progression> for &Progression {
     type Output = Progression;
 
     fn add(self, other: &'a Progression) -> Progression {
@@ -394,7 +389,7 @@ impl<'a> AddAssign<&'a Progression> for Progression {
     }
 }
 
-impl<'a, 'b> Sub<&'a Progression> for &'b Progression {
+impl<'a> Sub<&'a Progression> for &Progression {
     type Output = Progression;
 
     fn sub(self, other: &'a Progression) -> Progression {
