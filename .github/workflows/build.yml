@@ -1,0 +1,150 @@
+name: Build
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:            
+  build:
+    strategy:
+      fail-fast: false 
+      matrix:
+        include:
+          - platform: 'macos-latest'
+            host: 'darwin' 
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest'  
+            host: 'darwin' 
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-latest'
+            host: 'linux'
+            args: '--target x86_64-unknown-linux-musl' 
+          - platform: 'windows-latest' 
+            host: 'windows'
+            args: ''
+            
+    runs-on: ${{ matrix.platform }}        
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Github sha short (Linux and Macos) 
+        if: matrix.platform != 'windows-latest' 
+        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+      - name: Set Github sha short (Windows) 
+        if: matrix.platform == 'windows-latest' 
+        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $env:GITHUB_ENV 
+      - name: install deps (Ubuntu)
+        if: matrix.platform == 'ubuntu-latest' 
+        run: sudo apt update && sudo apt install -y musl-dev musl-tools
+      - name: 'Setup Rust on Windows and MacOS'
+        if: matrix.platform != 'ubuntu-latest' 
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - name: Get macos target and arch
+        if: matrix.platform == 'macos-latest' 
+        run: |
+          args="${{ matrix.args }}"
+          target=$(echo "$args" | awk '{print $2}')
+          echo "MACOS_TARGET=$target" >> $GITHUB_ENV
+          arch="${target%%-*}"
+          echo "ARCH=_$arch" >> $GITHUB_ENV
+      - name: Set Linux arch
+        if: matrix.platform == 'ubuntu-latest'
+        run: echo "ARCH=_amd64" >> $GITHUB_ENV
+      - name: 'Setup Rust on Linux'
+        if: matrix.platform == 'ubuntu-latest' 
+        uses: dtolnay/rust-toolchain@stable
+        with: 
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+      - name: fmt
+        run: cargo fmt --all -- --check
+      - name: Build binaries
+        run: cargo build --release --verbose ${{ matrix.args }} 
+      - name: Move macOS bin
+        if: matrix.platform == 'macos-latest'
+        run: |
+           mv target/${{ env.MACOS_TARGET }}/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}${{ env.ARCH }}
+           mv target/${{ env.MACOS_TARGET }}/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}${{ env.ARCH }}
+      - name: Move Windows bin
+        if: matrix.platform == 'windows-latest'
+        run: |
+          mv target/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_windows_x86_64.exe
+          mv target/release/speedupdateserver.exe target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_windows_x86_64.exe
+      - name: Move x86_64 Linux binaries
+        if: matrix.platform == 'ubuntu-latest' 
+        run: |
+          mv target/x86_64-unknown-linux-musl/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_amd64
+          mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_linux_amd64
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.host }}${{ env.ARCH }} 
+          if-no-files-found: error
+          path: |
+            target/release/speedupdate-*
+            target/release/speedupdateserver-*
+          
+  build-arm64-linux:
+    runs-on: ubuntu-latest
+    container: 
+      image: messense/rust-musl-cross:aarch64-musl
+    steps:
+    - uses: actions/checkout@v4
+    - run: git config --global --add safe.directory /__w/speedupdate-rs/speedupdate-rs 
+    - name: Set outputs
+      run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+    - name: Clippy
+      run: cargo clippy --all-targets --all-features -- -D warnings
+    - name: fmt
+      run: cargo fmt --all -- --check
+    - name: Build and move aarch64 Linux binaries
+      run: |
+        cargo build --release --verbose
+        mv target/aarch64-unknown-linux-musl/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
+        mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
+        if-no-files-found: error
+        path: |
+          target/release/speedupdate-*
+          target/release/speedupdateserver-*
+
+  build-container:
+    runs-on: ubuntu-22.04
+    needs: [build-arm64-linux, build]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set Github sha short
+        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: speedupdate-*
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Build container
+        uses: docker/build-push-action@v6
+        with:
+          file: Dockerfile
+          context: .
+          push: true
+          tags: ludea/speedupdate:latest
+          platforms: linux/amd64, linux/arm64
+          build-args: |
+            VERSION=${{ env.GITHUB_SHA_SHORT }} 
