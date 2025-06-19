@@ -38,7 +38,7 @@ zip = "3.0.0"
 
 [build-dependencies]
 tonic-build = { version = "0.13.0", features = ["prost"] }
-prost-build = "0.13.0"
+prost-build = "0.14.1"
 protox = "0.8"
 
 [package.metadata.generate-rpm]
