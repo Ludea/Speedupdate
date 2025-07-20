@@ -20,8 +20,8 @@ jobs:
       uses: dtolnay/rust-toolchain@stable
       with:
         target: x86_64-unknown-linux-musl
-    - name: Install cargo-deb 
-      run: cargo install cargo-deb 
+    - name: Install cargo-deb
+      run: cargo install cargo-deb
     - name: Install cargo-generate-rpm
       run: cargo install cargo-generate-rpm 
     - name: Install cargo-aur
@@ -41,15 +41,16 @@ jobs:
 #      run: cd cli && cargo aur
     - name: Rename bin
       run: |
-        mv target/x86_64-unknown-linux-musl/release/speedupdate target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_x86_64 
-        mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_x86_64 
+        mv target/x86_64-unknown-linux-musl/release/speedupdate target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
+        mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
     - name: Upload file
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
+        name: speedupdate-${{ github.ref_name }}_linux_amd64
         files: |
-          target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_x86_64
-          target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_x86_64
+          target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
+          target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
           target/x86_64-unknown-linux-musl/debian/*.deb
           target/x86_64-unknown-linux-musl/generate-rpm/*.rpm
     - name: Upload speedupdate deb to Cloudsmith
@@ -123,21 +124,26 @@ jobs:
  #       cargo deb -p speedupdateserver --target aarch64-unknown-linux-musl --no-build
     - name: Rename artifacts
       run: |
-        mv target/aarch64-unknown-linux-musl/release/speedupdate target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_aarch64
-        mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_aarch64
+        mv target/aarch64-unknown-linux-musl/release/speedupdate target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
+        mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
     - name: Upload file
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
+        name: speedupdate-${{ github.ref_name }}_linux_arm64
         files: |
-          target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_aarch64
-          target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_aarch64
+          target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
+          target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
  #         target/aarch64-unknown-linux-musl/debian/*.deb
 
   build-images:
     runs-on: ubuntu-22.04
+    needs: [build-x86_64-linux, build-aarch64-linux]
     steps:
     - uses: actions/checkout@v4
+    - uses: actions/download-artifact@v4
+        with:
+          pattern: speedupdate-*
     - name: Login to Docker Hub
       uses: docker/login-action@v3
       with:
