@@ -159,7 +159,6 @@ jobs:
         tags: |
           ludea/speedupdate:${{ steps.version.outputs.result }}
           ludea/speedupdate:latest
-        target: final
         platforms: linux/amd64, linux/arm64         
 
   build-windows:
