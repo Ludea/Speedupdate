@@ -10,6 +10,8 @@ env:
 jobs:
   build-x86_64-linux:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v4
     - name: Install deps
@@ -105,6 +107,8 @@ jobs:
     runs-on: ubuntu-22.04
     container: 
       image: messense/rust-musl-cross:aarch64-musl
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v4
     - name: Install deps
@@ -160,6 +164,8 @@ jobs:
 
   build-windows:
     runs-on: windows-2022
+    permissions:
+      contents: write
     steps:
     - uses: actions/checkout@v4
     - name: Build Binaries
