@@ -46,7 +46,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_amd64
+        name: speedupdate-${{ github.ref_name }}_linux_amd64
         if-no-files-found: error
         path: |
           target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
@@ -139,7 +139,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
+        name: speedupdate-${{ github.ref_name }}_linux_arm64
         if-no-files-found: error
         path: |
           target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
