@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set Github sha short  
         run: |
-          git config --global --add safe.directory /__w/speedupdate-rs/speedupdate-rs
+          git config --global --add safe.directory /__w/Speedupdate/Speedupdate
           echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
       - name: Build
         run: cargo build --release
@@ -41,7 +41,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set Github sha short
         run: |
-          git config --global --add safe.directory /__w/speedupdate-rs/speedupdate-rs
+          git config --global --add safe.directory /__w/Speedupdate/Speedupdate
           echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
       - name: Build
         run: cargo build --release
@@ -65,7 +65,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set Github sha short  
         run: |
-          git config --global --add safe.directory /__w/speedupdate-rs/speedupdate-rs
+          git config --global --add safe.directory /__w/Speedupdate/Speedupdate
           echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
       - uses: actions/download-artifact@v4
         with:
