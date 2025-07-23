@@ -57,7 +57,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        name: speedupdate-${{ github.ref_name }}_linux_amd64
+        name: speedupdate-${{ github.ref_name }}
         files: |
           target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
           target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
