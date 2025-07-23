@@ -3,15 +3,13 @@ ARG TARGETARCH
 ARG VERSION
 RUN apk upgrade
 
-WORKDIR /opt/speedupdate
-
 COPY speedupdate-${VERSION}_linux_$TARGETARCH/speedupdate-${VERSION}_linux_$TARGETARCH /usr/local/bin/speedupdate
 COPY speedupdate-${VERSION}_linux_$TARGETARCH/speedupdateserver-${VERSION}_linux_$TARGETARCH /usr/local/bin/speedupdateserver
 
 RUN chmod +x /usr/local/bin/speedupdateserver
 RUN chmod +x /usr/local/bin/speedupdate
 
-COPY pkey .
+COPY pkey /etc/speedupdate/pkey
 
 EXPOSE 8012
 
