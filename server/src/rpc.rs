@@ -716,8 +716,6 @@ where
                 .replace("/macos_x86_64", "")
                 .replace("/linux", "");
 
-            tracing::info!("content : {:?}", content_without_path);
-
             match parts.headers.get("authorization") {
                 Some(t) => {
                     let validation = &mut Validation::new(Algorithm::ES256);
