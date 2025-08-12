@@ -67,7 +67,7 @@ jobs:
         run: |
           git config --global --add safe.directory /__w/Speedupdate/Speedupdate
           echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v5
         with:
           pattern: speedupdate-*
       - name: Login to Docker Hub
