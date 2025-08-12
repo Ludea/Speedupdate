@@ -30,7 +30,7 @@ jobs:
             
     runs-on: ${{ matrix.platform }}        
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set Github sha short (Linux and Macos) 
         if: matrix.platform != 'windows-latest' 
         run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
@@ -97,7 +97,7 @@ jobs:
     container: 
       image: messense/rust-musl-cross:aarch64-musl
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - run: git config --global --add safe.directory /__w/speedupdate-rs/speedupdate-rs 
     - name: Set outputs
       run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [build-arm64-linux, build]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set Github sha short
         run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
       - uses: actions/download-artifact@v4

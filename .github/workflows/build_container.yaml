@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     container: messense/rust-musl-cross:aarch64-musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set Github sha short  
         run: |
           git config --global --add safe.directory /__w/Speedupdate/Speedupdate
@@ -38,7 +38,7 @@ jobs:
     runs-on: ubuntu-latest
     container: messense/rust-musl-cross:x86_64-musl
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set Github sha short
         run: |
           git config --global --add safe.directory /__w/Speedupdate/Speedupdate
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [build_aarch64, build_x86_64]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Set Github sha short  
         run: |
           git config --global --add safe.directory /__w/Speedupdate/Speedupdate

@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install deps
       run: sudo apt update && sudo apt install -y musl-tools musl-dev 
     - name: Setup rust
@@ -121,7 +121,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Install deps
       run: sudo apt update && sudo apt install -y zstd
     - name: Install cargo deb
@@ -158,7 +158,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [build-x86_64-linux, build-aarch64-linux]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: actions/download-artifact@v4
       with:
         pattern: speedupdate-*
@@ -197,7 +197,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Build Binaries
       run: |
         cargo build --verbose --release
@@ -216,7 +216,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Build Binaries
       run: |
         cargo build --verbose --release
