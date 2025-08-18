@@ -14,12 +14,13 @@ futures = { version = "0.3", default-features = false }
 pretty_env_logger = "0.5"
 metrics = "0.24"
 metrics-exporter-prometheus = "0.17"
-prost = "0.13.0"
+prost = "0.14.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 libspeedupdate = { path = "../lib" }
-tonic = { version = "0.13", features = ["gzip"] }
-tonic-web = { git = "https://github.com/MarkusTieger/tonic", features = ["axum"] }
+tonic = { version = "0.14", features = ["gzip"] }
+tonic-web = "0.14.0"
+tonic-prost = "0.14"
 tower-http = { version = "0.6", features = ["fs", "trace", "cors"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net", "sync"] }
@@ -37,9 +38,9 @@ http-body-util = "0.1.2"
 zip = "3.0.0"
 
 [build-dependencies]
-tonic-build = { version = "0.13.0", features = ["prost"] }
-prost-build = "0.13.0"
-protox = "0.8"
+tonic-build = "0.14"
+tonic-prost-build = "0.14"
+protox = "0.9"
 
 [package.metadata.generate-rpm]
 assets = [
