@@ -9,92 +9,71 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
-jobs:            
+jobs:
   build:
     strategy:
-      fail-fast: false 
+      fail-fast: false
       matrix:
         include:
-          - platform: 'macos-latest'
-            host: 'darwin' 
-            args: '--target aarch64-apple-darwin'
-          - platform: 'macos-latest'  
-            host: 'darwin' 
-            args: '--target x86_64-apple-darwin'
-          - platform: 'ubuntu-latest'
-            host: 'linux'
-            args: '--target x86_64-unknown-linux-musl' 
-          - platform: 'windows-latest' 
-            host: 'windows'
-            args: ''
-            
-    runs-on: ${{ matrix.platform }}        
+          - platform: ubuntu-latest
+            rust_target: x86_64-unknown-linux-musl
+            target: linux_x86_64
+          - platform: macos-latest
+            rust_target: x86_64-apple-darwin
+            target: macos_x86_64
+          - platform: macos-latest
+            rust_target: aarch64-apple-darwin
+            target: macos_aarch64
+          - platform: windows-latest
+            rust_target: x86_64-pc-windows-msvc
+            target: windows_x86_64
+
+    runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v5
       - name: Set Github sha short (Linux and Macos) 
-        if: matrix.platform != 'windows-latest' 
+        if: matrix.platform != 'windows-latest'
         run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
-      - name: Set Github sha short (Windows) 
-        if: matrix.platform == 'windows-latest' 
+      - name: Set Github sha short (Windows)
+        if: matrix.platform == 'windows-latest'
         run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $env:GITHUB_ENV 
       - name: install deps (Ubuntu)
-        if: matrix.platform == 'ubuntu-latest' 
+        if: matrix.platform == 'ubuntu-latest'
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
-      - name: 'Setup Rust on Windows and MacOS'
-        if: matrix.platform != 'ubuntu-latest' 
+      - name: 'Setup Rust'
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - name: Get macos target and arch
-        if: matrix.platform == 'macos-latest' 
-        run: |
-          args="${{ matrix.args }}"
-          target=$(echo "$args" | awk '{print $2}')
-          echo "MACOS_TARGET=$target" >> $GITHUB_ENV
-          arch="${target%%-*}"
-          echo "ARCH=_$arch" >> $GITHUB_ENV
-      - name: Set Linux arch
-        if: matrix.platform == 'ubuntu-latest'
-        run: echo "ARCH=_amd64" >> $GITHUB_ENV
-      - name: 'Setup Rust on Linux'
-        if: matrix.platform == 'ubuntu-latest' 
-        uses: dtolnay/rust-toolchain@stable
-        with: 
-          targets: x86_64-unknown-linux-musl
+          components: rustfmt, clippy
+          targets: ${{ matrix.rust_target }}
       - uses: Swatinem/rust-cache@v2
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: fmt
         run: cargo fmt --all -- --check
       - name: Build binaries
-        run: cargo build --release --verbose ${{ matrix.args }} 
-      - name: Move macOS bin
-        if: matrix.platform == 'macos-latest'
+        run: cargo build --release --verbose
+      - name: Move Macos and Linux binaries
+        if: matrix.platform != 'windows-latest'
         run: |
-           mv target/${{ env.MACOS_TARGET }}/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}${{ env.ARCH }}
-           mv target/${{ env.MACOS_TARGET }}/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}${{ env.ARCH }}
-      - name: Move Windows bin
+           mv target/${{ matrix.rust_target }}/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}
+           mv target/${{ matrix.rust_target }}/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}
+        - name: Move Windows binaries
         if: matrix.platform == 'windows-latest'
         run: |
-          mv target/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_windows_x86_64.exe
-          mv target/release/speedupdateserver.exe target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_windows_x86_64.exe
-      - name: Move x86_64 Linux binaries
-        if: matrix.platform == 'ubuntu-latest' 
-        run: |
-          mv target/x86_64-unknown-linux-musl/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_amd64
-          mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_linux_amd64
+           mv target/${{ matrix.rust_target }}/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}.target
+           mv target/${{ matrix.rust_target }}/release/speedupdateserver.exe target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}.exe
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.host }}${{ env.ARCH }} 
+          name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}
           if-no-files-found: error
           path: |
             target/release/speedupdate-*
             target/release/speedupdateserver-*
-          
+
   build-arm64-linux:
     runs-on: ubuntu-latest
-    container: 
+    container:
       image: messense/rust-musl-cross:aarch64-musl
     steps:
     - uses: actions/checkout@v5
@@ -147,4 +126,4 @@ jobs:
           tags: ludea/speedupdate:latest
           platforms: linux/amd64, linux/arm64
           build-args: |
-            VERSION=${{ env.GITHUB_SHA_SHORT }} 
+            VERSION=${{ env.GITHUB_SHA_SHORT }}
