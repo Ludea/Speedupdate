@@ -57,7 +57,7 @@ jobs:
         run: |
            mv target/${{ matrix.rust_target }}/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}
            mv target/${{ matrix.rust_target }}/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}
-        - name: Move Windows binaries
+      - name: Move Windows binaries
         if: matrix.platform == 'windows-latest'
         run: |
            mv target/${{ matrix.rust_target }}/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}.target
