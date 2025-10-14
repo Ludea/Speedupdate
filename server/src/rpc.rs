@@ -45,7 +45,7 @@ pub mod speedupdaterpc {
     tonic::include_proto!("speedupdate");
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 struct Claims {
     sub: String,
     email: String,
