@@ -450,7 +450,7 @@ impl Package for PackageMetadata {
 }
 
 impl PackageMetadata {
-    pub(crate) fn iter(&self) -> slice::Iter<v1::Operation> {
+    pub(crate) fn iter(&self) -> slice::Iter<'_, v1::Operation> {
         match self {
             PackageMetadata::V1 { operations, .. } => operations.iter(),
         }
@@ -620,7 +620,7 @@ pub enum WorkspaceChecks {
 }
 
 impl WorkspaceChecks {
-    pub(crate) fn iter(&self) -> slice::Iter<v1::Operation> {
+    pub(crate) fn iter(&self) -> slice::Iter<'_, v1::Operation> {
         match self {
             WorkspaceChecks::V1 { operations, .. } => operations.iter(),
         }
