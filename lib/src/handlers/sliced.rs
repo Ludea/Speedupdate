@@ -139,6 +139,7 @@ where
     }
 }
 
+#[allow(dead_code)]
 pub struct Handler<'a> {
     ctx: HandlerContext<'a>,
     path: metadata::CleanPath,

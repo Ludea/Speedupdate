@@ -36,6 +36,7 @@ pub trait Check {
     fn check(&mut self, buf: &[u8]);
 }
 
+#[allow(dead_code)]
 #[derive(Default)]
 pub struct CheckSize {
     pub bytes: u64,
