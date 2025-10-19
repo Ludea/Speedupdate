@@ -220,7 +220,7 @@ pub async fn do_build_package(matches: &ArgMatches, repository: &mut Repository)
         let goal_version = Some(prev_version.clone());
         let mut update_stream = workspace.update(&link, goal_version, UpdateOptions::default());
 
-        let state = match update_stream.next().await {
+        let state_ref = match update_stream.next().await {
             Some(Ok(state)) => state,
             Some(Err(err)) => {
                 error!("update failed: {}", err);
@@ -229,8 +229,18 @@ pub async fn do_build_package(matches: &ArgMatches, repository: &mut Repository)
             None => unreachable!(),
         };
 
-        let state = state.borrow();
-        let progress = state.histogram.progress();
+        let (download_bytes, apply_input_bytes, apply_output_bytes, progress) = {
+            let state = state_ref.borrow();
+            let p = state.histogram.progress();
+            (
+                state.download_bytes,
+                state.apply_input_bytes,
+                state.apply_output_bytes,
+                (p.downloaded_bytes, p.applied_input_bytes, p.applied_output_bytes),
+            )
+        };
+
+        let (downloaded_bytes, applied_input_bytes, applied_output_bytes) = progress;
 
         let res = if matches.get_flag("no_progress") {
             update_stream.try_for_each(|_state| future::ready(Ok(()))).await
@@ -245,24 +255,24 @@ pub async fn do_build_package(matches: &ArgMatches, repository: &mut Repository)
                 "Install  [{elapsed_precise}] {wide_bar:40.cyan/blue} {bytes:>8}/{total_bytes:8} ({bytes_per_sec:>10}      ) {msg:32}";
             let sty = ProgressStyle::default_bar().progress_chars("##-");
 
-            let dl_bytes = m.add(ProgressBar::new(state.download_bytes));
+            let dl_bytes = m.add(ProgressBar::new(download_bytes));
             dl_bytes.set_style(sty.clone().template(DL_TPL).unwrap());
-            dl_bytes.set_position(progress.downloaded_bytes);
+            dl_bytes.set_position(downloaded_bytes);
             dl_bytes.reset_eta();
 
-            let apply_input_bytes = m.add(ProgressBar::new(state.apply_input_bytes));
+            let apply_input_bytes = m.add(ProgressBar::new(apply_input_bytes));
             apply_input_bytes.set_style(sty.clone().template(IN_TPL).unwrap());
-            apply_input_bytes.set_position(progress.applied_input_bytes);
+            apply_input_bytes.set_position(applied_input_bytes);
             apply_input_bytes.reset_eta();
 
-            let apply_output_bytes = m.add(ProgressBar::new(state.apply_output_bytes));
+            let apply_output_bytes = m.add(ProgressBar::new(apply_output_bytes));
             apply_output_bytes.set_style(sty.clone().template(OU_TPL).unwrap());
-            apply_output_bytes.set_position(progress.applied_output_bytes);
+            apply_output_bytes.set_position(applied_output_bytes);
             apply_output_bytes.reset_eta();
 
             LOGGER.set_progress_bar(Some(dl_bytes.clone().downgrade()));
 
-            drop(state); // drop the Ref<_>
+            //drop(state); // drop the Ref<_>
 
             let res = update_stream
                 .try_for_each(|state| {

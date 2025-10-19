@@ -133,11 +133,11 @@ pub async fn do_update(
         },
         None => None,
     };
-    let mut update_options = UpdateOptions::default();
-    update_options.check = matches.get_flag("check");
+
+    let update_options = UpdateOptions { check: matches.get_flag("check"), ..Default::default() };
     let mut stream = workspace.update(repository, goal_version, update_options);
 
-    let state = match stream.next().await {
+    let state_ref = match stream.next().await {
         Some(Ok(state)) => state,
         Some(Err(err)) => {
             error!("update failed: {}", err);
@@ -149,16 +149,26 @@ pub async fn do_update(
         }
     };
 
-    let state = state.borrow();
-    let progress = state.histogram.progress();
-
-    println!("Target revision: {}", state.target_revision);
+    {
+        let state = state_ref.borrow();
+        println!("Target revision: {}", state.target_revision);
+    }
 
     let res = if matches.get_flag("no_progress") {
-        drop(state); // drop the Ref<_>
-
         stream.try_for_each(|_state| future::ready(Ok(()))).await
     } else {
+        let (download_bytes, apply_input_bytes, apply_output_bytes, progress) = {
+            let state = state_ref.borrow();
+            let p = state.histogram.progress();
+            (
+                state.download_bytes,
+                state.apply_input_bytes,
+                state.apply_output_bytes,
+                (p.downloaded_bytes, p.applied_input_bytes, p.applied_output_bytes),
+            )
+        };
+
+        let (downloaded_bytes, applied_input_bytes, applied_output_bytes) = progress;
         let draw_target = ProgressDrawTarget::term(Term::buffered_stdout(), 8);
         let m = MultiProgress::with_draw_target(draw_target);
         const DL_TPL: &str =
@@ -169,24 +179,22 @@ pub async fn do_update(
             "Install  [{wide_bar:cyan/blue}] {bytes:>8}/{total_bytes:8} ({bytes_per_sec:>10}      ) {msg:32}";
         let sty = ProgressStyle::default_bar().progress_chars("##-");
 
-        let dl_bytes = m.add(ProgressBar::new(state.download_bytes));
+        let dl_bytes = m.add(ProgressBar::new(download_bytes));
         dl_bytes.set_style(sty.clone().template(DL_TPL).unwrap());
-        dl_bytes.set_position(progress.downloaded_bytes);
+        dl_bytes.set_position(downloaded_bytes);
         dl_bytes.reset_eta();
 
-        let apply_input_bytes = m.add(ProgressBar::new(state.apply_input_bytes));
+        let apply_input_bytes = m.add(ProgressBar::new(apply_input_bytes));
         apply_input_bytes.set_style(sty.clone().template(IN_TPL).unwrap());
-        apply_input_bytes.set_position(progress.applied_input_bytes);
+        apply_input_bytes.set_position(applied_input_bytes);
         apply_input_bytes.reset_eta();
 
-        let apply_output_bytes = m.add(ProgressBar::new(state.apply_output_bytes));
+        let apply_output_bytes = m.add(ProgressBar::new(apply_output_bytes));
         apply_output_bytes.set_style(sty.clone().template(OU_TPL).unwrap());
-        apply_output_bytes.set_position(progress.applied_output_bytes);
+        apply_output_bytes.set_position(applied_output_bytes);
         apply_output_bytes.reset_eta();
 
         LOGGER.set_progress_bar(Some(dl_bytes.clone().downgrade()));
-
-        drop(state); // drop the Ref<_>
 
         let res = stream
             .try_for_each(|state| {
@@ -285,7 +293,7 @@ pub async fn do_log(matches: &ArgMatches, workspace: &mut Workspace) {
 
 pub async fn do_check(matches: &ArgMatches, workspace: &mut Workspace) {
     let mut stream = workspace.check();
-    let state = match stream.next().await {
+    let state_ref = match stream.next().await {
         Some(Ok(state)) => state,
         Some(Err(err)) => {
             error!("check failed: {}", err);
@@ -297,12 +305,15 @@ pub async fn do_check(matches: &ArgMatches, workspace: &mut Workspace) {
         }
     };
 
-    let state = state.borrow();
-    let progress = state.histogram.progress();
+    let (check_bytes, progress) = {
+        let state = state_ref.borrow();
+        let p = state.histogram.progress();
+        (state.check_bytes, p.checked_bytes)
+    };
+
+    let checked_bytes = progress;
 
     let res = if matches.get_flag("no_progress") {
-        drop(state); // drop the Ref<_>
-
         stream.try_for_each(|_state| future::ready(Ok(()))).await
     } else {
         let draw_target = ProgressDrawTarget::term(Term::buffered_stdout(), 8);
@@ -311,14 +322,12 @@ pub async fn do_check(matches: &ArgMatches, workspace: &mut Workspace) {
         "Check    [{wide_bar:cyan/blue}] {bytes:>8}/{total_bytes:8} ({bytes_per_sec:>10}, {eta:4}) {msg:32}";
         let sty = ProgressStyle::default_bar().progress_chars("##-");
 
-        let check_bytes = m.add(ProgressBar::new(state.check_bytes));
+        let check_bytes = m.add(ProgressBar::new(check_bytes));
         check_bytes.set_style(sty.clone().template(CHECK_TPL).unwrap());
-        check_bytes.set_position(progress.checked_bytes);
+        check_bytes.set_position(checked_bytes);
         check_bytes.reset_eta();
 
         LOGGER.set_progress_bar(Some(check_bytes.clone().downgrade()));
-
-        drop(state); // drop the Ref<_>
 
         let res = stream
             .try_for_each(|state| {
