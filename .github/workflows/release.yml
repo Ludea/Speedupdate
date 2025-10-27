@@ -44,7 +44,7 @@ jobs:
         mv target/x86_64-unknown-linux-musl/release/speedupdate target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
         mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: speedupdate-${{ github.ref_name }}_linux_amd64
         if-no-files-found: error
@@ -137,7 +137,7 @@ jobs:
         mv target/aarch64-unknown-linux-musl/release/speedupdate target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
         mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
     - name: Upload artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: speedupdate-${{ github.ref_name }}_linux_arm64
         if-no-files-found: error
