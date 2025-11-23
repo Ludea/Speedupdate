@@ -14,7 +14,7 @@ use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use libspeedupdate::{
     metadata::{v1, CleanName},
     repository::{BuildOptions, CoderOptions, PackageBuilder},
-    workspace::{UpdateOptions, Workspace},
+    //    workspace::{UpdateOptions, Workspace},
     Repository,
 };
 use notify::{Config, RecursiveMode, Watcher};
@@ -399,8 +399,8 @@ impl Repo for RemoteRepository {
         request: Request<BuildInput>,
     ) -> Result<Response<Self::BuildStream>, Status> {
         let inner = request.into_inner();
-        let repository_path = inner.path;
-        let repository = Repository::new(PathBuf::from(repository_path));
+        //let repository_path = inner.path;
+        //let repository = Repository::new(PathBuf::from(repository_path));
 
         let source_version = match CleanName::new(inner.version) {
             Ok(ver) => ver,
