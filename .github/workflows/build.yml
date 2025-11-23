@@ -51,7 +51,7 @@ jobs:
       - name: fmt
         run: cargo fmt --all -- --check
       - name: Build binaries
-        run: cargo build --release --verbose
+        run: cargo build --release --verbose --target ${{ matrix.rust_target }}
       - name: Move Macos and Linux binaries
         if: matrix.platform != 'windows-latest'
         run: |
