@@ -77,9 +77,10 @@ jobs:
       image: messense/rust-musl-cross:aarch64-musl
     steps:
     - uses: actions/checkout@v6
-    - run: git config --global --add safe.directory /__w/speedupdate-rs/speedupdate-rs 
-    - name: Set outputs
-      run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+    - name: Set Github sha short
+      run: |
+        git config --global --add safe.directory /__w/Speedupdate/Speedupdate
+        echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
     - name: Clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
     - name: fmt
