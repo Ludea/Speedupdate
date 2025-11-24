@@ -101,7 +101,7 @@ jobs:
 
   build-container:
     runs-on: ubuntu-22.04
-    if: ${{ github.event_name != "pull_request" }}
+    if: ${{ github.event_name != 'pull_request' }}
     needs: [build-arm64-linux, build]
     steps:
       - uses: actions/checkout@v6
