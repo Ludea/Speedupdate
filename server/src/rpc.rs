@@ -18,6 +18,7 @@ use libspeedupdate::{
     Repository,
 };
 use notify::{Config, RecursiveMode, Watcher};
+use prost::Message;
 use ring::{
     rand,
     signature::{EcdsaKeyPair, KeyPair},
@@ -684,8 +685,12 @@ where
         let mut inner = std::mem::replace(&mut self.inner, clone);
 
         Box::pin(async move {
+            let called_fn = req.uri().path();
+            let called_fn_without_service = called_fn.replace("/speedupdate.Repo/", "");
+
+            //println!("12 {:?}", called_fn_without_service);
             let (parts, body) = req.into_parts();
-            let encoded_pkcs8 = fs::read_to_string("/etc/speedupdate/pkey").unwrap();
+            let encoded_pkcs8 = fs::read_to_string("pkey").unwrap();
             let decoded_pkcs8 = general_purpose::STANDARD.decode(encoded_pkcs8).unwrap();
             let rng = &rand::SystemRandom::new();
             let pair = EcdsaKeyPair::from_pkcs8(
@@ -705,16 +710,17 @@ where
                 .unwrap()
                 .to_bytes();
 
-            let content_vec = content.to_vec();
-            let content_string = String::from_utf8(content_vec).unwrap();
-            let content_without_ascii: Vec<_> =
-                content_string.chars().filter(|&c| !(c as u32) <= 0x001F).collect();
-            let content_string_without_ascii: String = content_without_ascii.into_iter().collect();
-            let content_without_path = content_string_without_ascii
+            let len = u32::from_be_bytes([content[1], content[2], content[3], content[4]]) as usize;
+            let decoded_content = RepositoryPath::decode(&content[5..5 + len]);
+            let content_without_path = decoded_content
+                .unwrap()
+                .path
                 .replace("/win64", "")
                 .replace("/macos_arm64", "")
                 .replace("/macos_x86_64", "")
-                .replace("/linux", "");
+                .replace("/linux", "")
+                .replace("/game", "")
+                .replace("/launcher", "");
 
             match parts.headers.get("authorization") {
                 Some(t) => {
@@ -724,7 +730,9 @@ where
                     match decode::<Claims>(&t_string, decoding_key, validation) {
                         Ok(token_data) => {
                             // Compare body with scope
-                            if token_data.claims.scope == content_without_path {
+                            if called_fn_without_service == "Init"
+                                || token_data.claims.scope == content_without_path
+                            {
                                 let body = AxumBody::from(content);
                                 let response = inner
                                     .call(http::Request::from_parts(parts, body))
