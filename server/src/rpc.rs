@@ -51,7 +51,7 @@ struct Claims {
     sub: String,
     email: String,
     exp: u64,
-    scope: String,
+    scope: Vec<String>,
 }
 
 type ResponseStatusStream = Pin<Box<dyn Stream<Item = Result<RepoStatusOutput, Status>> + Send>>;
@@ -688,7 +688,6 @@ where
             let called_fn = req.uri().path();
             let called_fn_without_service = called_fn.replace("/speedupdate.Repo/", "");
 
-            //println!("12 {:?}", called_fn_without_service);
             let (parts, body) = req.into_parts();
             let encoded_pkcs8 = fs::read_to_string("pkey").unwrap();
             let decoded_pkcs8 = general_purpose::STANDARD.decode(encoded_pkcs8).unwrap();
@@ -731,7 +730,7 @@ where
                         Ok(token_data) => {
                             // Compare body with scope
                             if called_fn_without_service == "Init"
-                                || token_data.claims.scope == content_without_path
+                                || token_data.claims.scope.contains(&content_without_path)
                             {
                                 let body = AxumBody::from(content);
                                 let response = inner
