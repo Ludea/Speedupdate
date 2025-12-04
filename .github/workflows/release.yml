@@ -239,10 +239,8 @@ jobs:
       contents: write
     steps:
     - uses: actions/checkout@v6
-    - name: install yq
-      run: |
-        brew install yq
-        echo "VERSION=$(yq '.package.version' lib/Cargo.toml)" >> $GITHUB_ENV
+    - name: Get version
+      run: echo "VERSION=$(yq '.package.version' lib/Cargo.toml)" >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
@@ -252,7 +250,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ env.VERSION }}
-        name: Speedupdate v${{ env.VERSION }}_macos
+        name: Speedupdate v${{ env.VERSION }}
         files: |
           target/release/speedupdate-cli-v${{ env.VERSION }}_darwin_x86_64
           target/release/speedupdateserver-v${{ env.VERSION }}_darwin_x86_64
