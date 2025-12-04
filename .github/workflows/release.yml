@@ -66,7 +66,6 @@ jobs:
           target/x86_64-unknown-linux-musl/generate-rpm/*.rpm
     - name: Upload file into Release page
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         tag_name: v${{ steps.version.outputs.result }}
         name: Speedupdate v${{ steps.version.outputs.result }}
@@ -163,7 +162,6 @@ jobs:
           target/aarch64-unknown-linux-musl/release/speedupdateserver-v${{ steps.version.outputs.result }}_linux_arm64
     - name: Upload file into Release page
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         tag_name: v${{ steps.version.outputs.result }}
         name: Speedupdate v${{ steps.version.outputs.result }}_linux_arm64
@@ -228,7 +226,6 @@ jobs:
         mv target/release/speedupdateserver.exe target/release/speedupdateserver-v${{ env.VERSION }}_x86_64.exe
     - name: Upload file
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         tag_name: v${{ steps.version.outputs.result }}
         name: Speedupdate v${{ env.VERSION }}_windows_x86_64
@@ -253,7 +250,6 @@ jobs:
         mv target/release/speedupdateserver target/release/speedupdateserver-v${{ env.VERSION }}_darwin_x86_64
     - name: Upload file
       uses: softprops/action-gh-release@v2
-      if: startsWith(github.ref, 'refs/tags/')
       with:
         tag_name: v${{ env.VERSION }}
         name: Speedupdate v${{ env.VERSION }}_macos
