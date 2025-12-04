@@ -164,7 +164,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.version.outputs.result }}
-        name: Speedupdate v${{ steps.version.outputs.result }}_linux_arm64
+        name: Speedupdate v${{ steps.version.outputs.result }}
         files: |
           target/aarch64-unknown-linux-musl/release/speedupdate-v${{ steps.version.outputs.result }}_linux_arm64
           target/aarch64-unknown-linux-musl/release/speedupdateserver-v${{ steps.version.outputs.result }}_linux_arm64
