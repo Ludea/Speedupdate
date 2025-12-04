@@ -24,7 +24,7 @@ jobs:
       id: version
       uses: mikefarah/yq@v4
       with:
-        cmd: yq '.package.version' Cargo.toml
+        cmd: yq '.package.version' lib/Cargo.toml
     - name: Install deps
       run: sudo apt update && sudo apt install -y musl-tools musl-dev 
     - name: Setup rust
@@ -137,7 +137,7 @@ jobs:
       id: version
       uses: mikefarah/yq@v4
       with:
-        cmd: yq '.package.version' Cargo.toml
+        cmd: yq '.package.version' lib/Cargo.toml
     - name: Install deps
       run: sudo apt update && sudo apt install -y zstd
     - name: Install cargo deb
@@ -179,7 +179,7 @@ jobs:
       id: version
       uses: mikefarah/yq@v4
       with:
-        cmd: yq '.package.version' Cargo.toml
+        cmd: yq '.package.version' lib/Cargo.toml
     - uses: actions/download-artifact@v6
       with:
         pattern: speedupdate-*
@@ -218,7 +218,7 @@ jobs:
     - name: Install yq
       run: |
         choco install yq
-        echo "VERSION=$(yq '.package.version' Cargo.toml)" >> $GITHUB_ENV
+        echo "VERSION=$(yq '.package.version' lib/Cargo.toml)" >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
@@ -242,7 +242,7 @@ jobs:
     - name: install yq
       run: |
         brew install yq
-        echo "VERSION=$(yq '.package.version' Cargo.toml)" >> $GITHUB_ENV
+        echo "VERSION=$(yq '.package.version' lib/Cargo.toml)" >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
