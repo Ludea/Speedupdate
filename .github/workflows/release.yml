@@ -155,7 +155,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v5
       with:
-        name: speedupdate-v${{ steps.version.outputs.result }}_linux_arm64
+        name: speedupdate-v${{ steps.version.outputs.result }}
         if-no-files-found: error
         path: |
           target/aarch64-unknown-linux-musl/release/speedupdate-v${{ steps.version.outputs.result }}_linux_arm64
