@@ -1,4 +1,4 @@
-use std::net::SocketAddrV4;
+use std::net::SocketAddr;
 
 use axum::Router;
 use tower_http::cors::{Any, CorsLayer};
@@ -26,15 +26,14 @@ async fn main() {
         )
         .init();
 
-    let addr: SocketAddrV4 = "0.0.0.0:8012".parse().unwrap();
+    let addr = SocketAddr::from(([0, 0, 0, 0], 8012));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+
+    let cors_layer = CorsLayer::new().allow_origin(Any).allow_headers(Any).expose_headers(Any);
 
     let grpc = rpc::rpc_api();
     let http = http::http_api();
-    let app = Router::new()
-        .merge(grpc)
-        .merge(http)
-        .layer(CorsLayer::new().allow_origin(Any).allow_headers(Any).expose_headers(Any));
+    let app = Router::new().merge(grpc).merge(http).layer(cors_layer);
 
     tracing::info!("Speedupdate gRPC and http server listening on {addr}");
 

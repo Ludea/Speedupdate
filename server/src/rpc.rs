@@ -8,7 +8,6 @@ use std::{
 
 use base64::{engine::general_purpose, Engine as _};
 use futures::prelude::*;
-use http::header::{AUTHORIZATION, CONTENT_TYPE};
 use http_body_util::BodyExt;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use libspeedupdate::{
@@ -35,12 +34,11 @@ use tokio_stream::wrappers::ReceiverStream;
 use tokio_util::sync::CancellationToken;
 use tonic::{
     codec::CompressionEncoding,
-    service::{AxumBody, AxumRouter, Routes},
+    service::{AxumBody, AxumRouter, RoutesBuilder},
     Request, Response, Status,
 };
 use tonic_web::GrpcWebLayer;
 use tower::{Layer, Service};
-use tower_http::cors::{Any, CorsLayer};
 
 pub mod speedupdaterpc {
     tonic::include_proto!("speedupdate");
@@ -628,22 +626,12 @@ pub fn rpc_api() -> AxumRouter {
         .send_compressed(CompressionEncoding::Gzip)
         .accept_compressed(CompressionEncoding::Gzip);
 
-    let mut routes = Routes::builder();
+    let mut routes = RoutesBuilder::default();
     routes.add_service(service);
-
-    let cors_layer = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_headers([
-            AUTHORIZATION,
-            CONTENT_TYPE,
-            http::header::HeaderName::from_static("x-grpc-web"),
-            http::header::HeaderName::from_static("x-user-agent"),
-        ])
-        .expose_headers(Any);
 
     let layer = tower::ServiceBuilder::new().layer(AuthMiddlewareLayer::default()).into_inner();
 
-    routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(cors_layer).layer(layer)
+    routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(layer)
 }
 
 #[derive(Debug, Clone, Default)]
