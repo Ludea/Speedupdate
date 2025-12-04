@@ -217,25 +217,24 @@ jobs:
       contents: write
     steps:
     - uses: actions/checkout@v6
-    - name: Get version
-      id: version
-      uses: mikefarah/yq@v4
-      with:
-        cmd: yq '.package.version' Cargo.toml
+    - name: Install yq
+      run: |
+        choco install yq
+        echo "VERSION=$(yq '.package.version' Cargo.toml) >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
-        mv target/release/speedupdate.exe target/release/speedupdate-v${{ steps.version.outputs.result }}_x86_64.exe
-        mv target/release/speedupdateserver.exe target/release/speedupdateserver-v${{ steps.version.outputs.result }}_x86_64.exe
+        mv target/release/speedupdate.exe target/release/speedupdate-v${{ env.VERSION }}_x86_64.exe
+        mv target/release/speedupdateserver.exe target/release/speedupdateserver-v${{ env.VERSION }}_x86_64.exe
     - name: Upload file
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
         tag_name: v${{ steps.version.outputs.result }}
-        name: Speedupdate v${{ steps.version.outputs.result }}_windows_x86_64
+        name: Speedupdate v${{ env.VERSION }}_windows_x86_64
         files: |
-          target/release/speedupdate-v${{ steps.version.outputs.result }}_x86_64.exe
-          target/release/speedupdateserver-v${{ steps.version.outputs.result }}_x86_64.exe
+          target/release/speedupdate-v${{ env.VERSION }}_x86_64.exe
+          target/release/speedupdateserver-v${{ env.VERSION }}_x86_64.exe
 
   build-macOS:
     runs-on: macos-14
@@ -243,23 +242,22 @@ jobs:
       contents: write
     steps:
     - uses: actions/checkout@v6
-    - name: Get version
-      id: version
-      uses: mikefarah/yq@v4
-      with:
-        cmd: yq '.package.version' Cargo.toml
+    - name: install yq
+      run: |
+        brew install yq
+        echo "VERSION=$(yq '.package.version' Cargo.toml) >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
-        mv target/release/speedupdate target/release/speedupdate-v${{ steps.version.outputs.result }}_darwin_x86_64
-        mv target/release/speedupdateserver target/release/speedupdateserver-v${{ steps.version.outputs.result }}_darwin_x86_64
+        mv target/release/speedupdate target/release/speedupdate-v${{ env.VERSION }}_darwin_x86_64
+        mv target/release/speedupdateserver target/release/speedupdateserver-v${{ env.VERSION }}_darwin_x86_64
     - name: Upload file
       uses: softprops/action-gh-release@v2
       if: startsWith(github.ref, 'refs/tags/')
       with:
-        tag_name: v${{ steps.version.outputs.result }}
-        name: Speedupdate v${{ steps.version.outputs.result }}_macos
+        tag_name: v${{ env.VERSION }}
+        name: Speedupdate v${{ env.VERSION }}_macos
         files: |
-          target/release/speedupdate-cli-v${{ steps.version.outputs.result }}_darwin_x86_64
-          target/release/speedupdateserver-v${{ steps.version.outputs.result }}_darwin_x86_64
+          target/release/speedupdate-cli-v${{ env.VERSION }}_darwin_x86_64
+          target/release/speedupdateserver-v${{ env.VERSION }}_darwin_x86_64
 
