@@ -228,7 +228,7 @@ jobs:
       uses: softprops/action-gh-release@v2
       with:
         tag_name: v${{ steps.version.outputs.result }}
-        name: Speedupdate v${{ env.VERSION }}_windows_x86_64
+        name: Speedupdate v${{ env.VERSION }}
         files: |
           target/release/speedupdate-v${{ env.VERSION }}_x86_64.exe
           target/release/speedupdateserver-v${{ env.VERSION }}_x86_64.exe
