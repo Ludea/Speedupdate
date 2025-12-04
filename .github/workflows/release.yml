@@ -220,7 +220,7 @@ jobs:
     - name: Install yq
       run: |
         choco install yq
-        echo "VERSION=$(yq '.package.version' Cargo.toml) >> $GITHUB_ENV
+        echo "VERSION=$(yq '.package.version' Cargo.toml)" >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
@@ -245,7 +245,7 @@ jobs:
     - name: install yq
       run: |
         brew install yq
-        echo "VERSION=$(yq '.package.version' Cargo.toml) >> $GITHUB_ENV
+        echo "VERSION=$(yq '.package.version' Cargo.toml)" >> $GITHUB_ENV
     - name: Build Binaries
       run: |
         cargo build --verbose --release
