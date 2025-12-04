@@ -1,6 +1,6 @@
 [package]
 name = "libspeedupdate"
-version = "0.10.3"
+version = "0.10.4"
 authors = ["Vincent Rouillé <vincent@speedy37.fr>"]
 edition = "2021"
 
