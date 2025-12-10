@@ -1,6 +1,6 @@
 use std::{
     convert::Infallible,
-    env, fs,
+    fs,
     future::ready,
     io::{self, Read},
 };
@@ -62,9 +62,8 @@ pub fn http_api() -> Router {
     }
 
     let service = handle_404.into_service();
-    let current_dir = env::current_dir().unwrap();
 
-    let serve_dir = ServeDir::new(current_dir).not_found_service(service);
+    let serve_dir = ServeDir::new(".").not_found_service(service);
 
     Router::new()
         .route("/health", get(health_check))
