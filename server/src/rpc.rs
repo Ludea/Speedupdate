@@ -1,5 +1,5 @@
 use std::{
-    fs,
+    env, fs,
     path::{Path, PathBuf},
     pin::Pin,
     task::{Context, Poll},
@@ -677,7 +677,8 @@ where
             let called_fn_without_service = called_fn.replace("/speedupdate.Repo/", "");
 
             let (parts, body) = req.into_parts();
-            let encoded_pkcs8 = fs::read_to_string("/etc/speedupdate/pkey").unwrap();
+            let current_dir = env::current_dir().unwrap();
+            let encoded_pkcs8 = fs::read_to_string(current_dir.join("pkey")).unwrap();
             let decoded_pkcs8 = general_purpose::STANDARD.decode(encoded_pkcs8).unwrap();
             let rng = &rand::SystemRandom::new();
             let pair = EcdsaKeyPair::from_pkcs8(
