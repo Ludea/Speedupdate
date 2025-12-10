@@ -9,6 +9,8 @@ COPY speedupdate-${VERSION}_linux_$TARGETARCH/speedupdateserver-${VERSION}_linux
 RUN chmod +x /usr/local/bin/speedupdateserver
 RUN chmod +x /usr/local/bin/speedupdate
 
+WORKDIR /opt
+
 COPY pkey /etc/speedupdate/pkey
 
 EXPOSE 8012
