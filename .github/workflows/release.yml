@@ -218,8 +218,8 @@ jobs:
     - name: Upload file
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ github.ref_name }}
-        name: Speedupdate v${{ github.ref_name }}
+        tag_name: ${{ github.ref_name }}
+        name: Speedupdate ${{ github.ref_name }}
         files: |
           target/release/speedupdate-v${{ github.ref_name }}_x86_64.exe
           target/release/speedupdateserver-v${{ github.ref_name }}_x86_64.exe
@@ -238,8 +238,8 @@ jobs:
     - name: Upload file
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: v${{ github.ref_name }}
-        name: Speedupdate v${{ github.ref_name }}
+        tag_name: ${{ github.ref_name }}
+        name: Speedupdate ${{ github.ref_name }}
         files: |
           target/release/speedupdate-cli-v${{ github.ref_name }}_darwin_x86_64
           target/release/speedupdateserver-v${{ github.ref_name }}_darwin_x86_64
