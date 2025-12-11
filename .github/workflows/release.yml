@@ -198,7 +198,7 @@ jobs:
           ludea/speedupdate:latest
         platforms: linux/amd64, linux/arm64         
         build-args: |
-          VERSION=v${{ github.ref_name }}
+          VERSION=${{ github.ref_name }}
 
   build-windows:
     runs-on: windows-2022
@@ -213,16 +213,16 @@ jobs:
     - name: Build Binaries
       run: |
         cargo build --verbose --release
-        mv target/release/speedupdate.exe target/release/speedupdate-v${{ github.ref_name }}_x86_64.exe
-        mv target/release/speedupdateserver.exe target/release/speedupdateserver-v${{ github.ref_name }}_x86_64.exe
+        mv target/release/speedupdate.exe target/release/speedupdate-${{ github.ref_name }}_x86_64.exe
+        mv target/release/speedupdateserver.exe target/release/speedupdateserver-${{ github.ref_name }}_x86_64.exe
     - name: Upload file
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
         files: |
-          target/release/speedupdate-v${{ github.ref_name }}_x86_64.exe
-          target/release/speedupdateserver-v${{ github.ref_name }}_x86_64.exe
+          target/release/speedupdate-${{ github.ref_name }}_x86_64.exe
+          target/release/speedupdateserver-${{ github.ref_name }}_x86_64.exe
 
   build-macOS:
     runs-on: macos-14
@@ -233,14 +233,14 @@ jobs:
     - name: Build Binaries
       run: |
         cargo build --verbose --release
-        mv target/release/speedupdate target/release/speedupdate-v${{ github.ref_name }}_darwin_x86_64
-        mv target/release/speedupdateserver target/release/speedupdateserver-v${{ github.ref_name }}_darwin_x86_64
+        mv target/release/speedupdate target/release/speedupdate-${{ github.ref_name }}_darwin_x86_64
+        mv target/release/speedupdateserver target/release/speedupdateserver-${{ github.ref_name }}_darwin_x86_64
     - name: Upload file
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
         files: |
-          target/release/speedupdate-cli-v${{ github.ref_name }}_darwin_x86_64
-          target/release/speedupdateserver-v${{ github.ref_name }}_darwin_x86_64
+          target/release/speedupdate-cli-${{ github.ref_name }}_darwin_x86_64
+          target/release/speedupdateserver-${{ github.ref_name }}_darwin_x86_64
 
