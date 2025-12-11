@@ -54,7 +54,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v5
       with:
-        name: speedupdate-v${{ github.ref_name }}_linux_amd64
+        name: speedupdate-${{ github.ref_name }}_linux_amd64
         if-no-files-found: error
         path: |
           target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
