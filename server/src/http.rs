@@ -160,7 +160,7 @@ async fn upload(
             file_name = match field.file_name() {
                 Some(name) => name.to_string(),
                 None => {
-                    tracing::error!("Upload: missing file name".to_string());
+                    tracing::error!("Upload: missing file name");
                     return Err((StatusCode::BAD_REQUEST, "Missing file name".to_string()));
                 }
             };
