@@ -157,7 +157,14 @@ async fn upload(
             .await
             .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?
         {
-            file_name = field.file_name().unwrap().to_string();
+            file_name = match field.file_name() {
+                Some(name) => name.to_string(),
+                None => {
+                    tracing::error!("Upload: missing file name".to_string());
+                    return Err((StatusCode::BAD_REQUEST, "Missing file name".to_string()));
+                }
+            };
+
             let mut file =
                 File::create(format!("{}/{}", &upload_path.display().to_string(), file_name))
                     .await
