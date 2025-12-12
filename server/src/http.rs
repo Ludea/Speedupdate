@@ -69,7 +69,7 @@ pub fn http_api() -> Router {
         .route("/health", get(health_check))
         .route("/metrics", get(move || ready(recorder_handle.render())))
         .route(
-            "/{repo}/{type}/{folder}/{platform}",
+            "/{repo}/{type}/binaries/{platform}",
             on(MethodFilter::POST, {
                 let progress_tx = progress_tx.clone();
                 move |header, path, multipart| {
@@ -111,11 +111,11 @@ async fn track_metrics(req: Request, next: Next) -> impl IntoResponse {
 async fn save_binaries(
     progress_tx: Sender<(usize, usize)>,
     header: HeaderMap,
-    Path((repo, launcher_game, folder, platform)): Path<(String, String, String, String)>,
+    Path((repo, launcher_game, platform)): Path<(String, String, String)>,
     multipart: Multipart,
 ) -> Result<(), (StatusCode, String)> {
     let repo_path = std::path::Path::new(&repo);
-    let folder_path = format!("{}/{}/{}/{}", repo.clone(), launcher_game, folder, platform);
+    let folder_path = format!("{}/{}/{}/{}", repo.clone(), launcher_game, "binaries", platform);
     let upload_path = std::path::Path::new(&folder_path);
 
     upload(progress_tx, multipart, header, repo_path, upload_path).await?;
