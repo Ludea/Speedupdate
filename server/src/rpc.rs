@@ -697,46 +697,60 @@ where
                 .unwrap()
                 .to_bytes();
 
-            let len = u32::from_be_bytes([content[1], content[2], content[3], content[4]]) as usize;
-            let decoded_content = RepositoryPath::decode(&content[5..5 + len]);
-            let content_without_path = decoded_content
-                .unwrap()
-                .path
-                .replace("/win64", "")
-                .replace("/macos_arm64", "")
-                .replace("/macos_x86_64", "")
-                .replace("/linux", "")
-                .replace("/game", "")
-                .replace("/launcher", "");
+            if content.len() > 0 {
+                let len =
+                    u32::from_be_bytes([content[1], content[2], content[3], content[4]]) as usize;
+                let decoded_content = RepositoryPath::decode(&content[5..5 + len]);
+                let content_without_path = decoded_content
+                    .unwrap()
+                    .path
+                    .replace("/win64", "")
+                    .replace("/macos_arm64", "")
+                    .replace("/macos_x86_64", "")
+                    .replace("/linux", "")
+                    .replace("/game", "")
+                    .replace("/launcher", "");
 
-            match parts.headers.get("authorization") {
-                Some(t) => {
-                    let validation = &mut Validation::new(Algorithm::ES256);
-                    validation.validate_exp = false;
-                    let t_string = t.to_str().unwrap().replace("Bearer ", "");
-                    match decode::<Claims>(&t_string, decoding_key, validation) {
-                        Ok(token_data) => {
-                            // Compare body with scope
-                            if called_fn_without_service == "Init"
-                                || token_data.claims.scope.contains(&content_without_path)
-                            {
-                                let body = AxumBody::from(content);
-                                let response = inner
-                                    .call(http::Request::from_parts(parts, body))
-                                    .await
-                                    .map_err(|_err| {
-                                        println!("error");
-                                    })
-                                    .unwrap();
-                                Ok(response)
-                            } else {
-                                Ok(Status::unauthenticated("Not allowed").into_http())
+                match parts.headers.get("authorization") {
+                    Some(t) => {
+                        let validation = &mut Validation::new(Algorithm::ES256);
+                        validation.validate_exp = false;
+                        let t_string = t.to_str().unwrap().replace("Bearer ", "");
+                        match decode::<Claims>(&t_string, decoding_key, validation) {
+                            Ok(token_data) => {
+                                // Compare body with scope
+                                if called_fn_without_service == "Init"
+                                    || token_data.claims.scope.contains(&content_without_path)
+                                {
+                                    let body = AxumBody::from(content);
+                                    let response = inner
+                                        .call(http::Request::from_parts(parts, body))
+                                        .await
+                                        .map_err(|_err| {
+                                            println!("error");
+                                        })
+                                        .unwrap();
+                                    Ok(response)
+                                } else {
+                                    Ok(Status::unauthenticated("Not allowed").into_http())
+                                }
                             }
+                            Err(err) => Ok(Status::unauthenticated(err.to_string()).into_http()),
                         }
-                        Err(err) => Ok(Status::unauthenticated(err.to_string()).into_http()),
                     }
+                    None => Ok(Status::unauthenticated("No token found").into_http()),
                 }
-                None => Ok(Status::unauthenticated("No token found").into_http()),
+            } else {
+                // http response
+                let body = AxumBody::from(content);
+                let response = inner
+                    .call(http::Request::from_parts(parts, body))
+                    .await
+                    .map_err(|_err| {
+                        tracing::error!("Unable to create http response");
+                    })
+                    .unwrap();
+                Ok(response)
             }
         })
     }
