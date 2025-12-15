@@ -63,7 +63,7 @@ jobs:
            mv target/${{ matrix.rust_target }}/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}.exe
            mv target/${{ matrix.rust_target }}/release/speedupdateserver.exe target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}.exe
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}
           if-no-files-found: error
@@ -91,7 +91,7 @@ jobs:
         mv target/aarch64-unknown-linux-musl/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
         mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
     - name: Upload artifacts
-      uses: actions/upload-artifact@v5
+      uses: actions/upload-artifact@v6
       with:
         name: speedupdate-${{ env.GITHUB_SHA_SHORT }}_linux_arm64
         if-no-files-found: error
