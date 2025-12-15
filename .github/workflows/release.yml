@@ -167,7 +167,7 @@ jobs:
     needs: [build-x86_64-linux, build-aarch64-linux]
     steps:
     - uses: actions/checkout@v6
-    - uses: actions/download-artifact@v6
+    - uses: actions/download-artifact@v7
       with:
         pattern: speedupdate-*
     - name: Move binaries into parent folder
