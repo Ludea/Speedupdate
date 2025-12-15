@@ -351,12 +351,11 @@ where
 {
     #[cfg(feature = "brotli")]
     if encoder_options.name() == "brotli" {
-        let mut params = ::brotli::enc::BrotliEncoderParams::default();
         let quality = encoder_options.get_u32_range(&["", "quality"], 6, 0..=11)?;
         let lgwin = encoder_options.get_u32_range(&["lgwin", "lg_window_size"], 20, 10..=30)?;
-        params.quality = quality as i32;
-        params.lgwin = lgwin as i32;
-        return Ok(BoxCoderDirect::boxed(brotli::CompressorWriter::new(output, 4096, 5, 22)));
+        return Ok(BoxCoderDirect::boxed(brotli::CompressorWriter::new(
+            output, 4096, quality, lgwin,
+        )));
     }
 
     #[cfg(feature = "lzma")]

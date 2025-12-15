@@ -697,7 +697,7 @@ where
                 .unwrap()
                 .to_bytes();
 
-            if content.len() > 0 {
+            if !content.is_empty() {
                 let len =
                     u32::from_be_bytes([content[1], content[2], content[3], content[4]]) as usize;
                 let decoded_content = RepositoryPath::decode(&content[5..5 + len]);
