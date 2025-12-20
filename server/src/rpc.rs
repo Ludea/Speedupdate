@@ -6,7 +6,6 @@ use std::{
     time::Duration,
 };
 
-use base64::{engine::general_purpose, Engine as _};
 use futures::prelude::*;
 use http_body_util::BodyExt;
 use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
@@ -18,10 +17,7 @@ use libspeedupdate::{
 };
 use notify::{Config, RecursiveMode, Watcher};
 use prost::Message;
-use ring::{
-    rand,
-    signature::{EcdsaKeyPair, KeyPair},
-};
+
 use serde::{Deserialize, Serialize};
 use speedupdaterpc::repo_server::{Repo, RepoServer};
 use speedupdaterpc::{
@@ -620,7 +616,7 @@ where
     select_task.await.unwrap()
 }
 
-pub fn rpc_api() -> AxumRouter {
+pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
     let repo = RemoteRepository {};
     let service = RepoServer::new(repo)
         .send_compressed(CompressionEncoding::Gzip)
@@ -629,25 +625,30 @@ pub fn rpc_api() -> AxumRouter {
     let mut routes = RoutesBuilder::default();
     routes.add_service(service);
 
-    let layer = tower::ServiceBuilder::new().layer(AuthMiddlewareLayer::default()).into_inner();
+    let layer = tower::ServiceBuilder::new()
+        .layer(AuthMiddlewareLayer { pkey: decoded_pkey.clone() })
+        .into_inner();
 
     routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(layer)
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AuthMiddlewareLayer {}
+#[derive(Debug, Clone)]
+pub struct AuthMiddlewareLayer {
+    pkey: DecodingKey,
+}
 
 impl<S> Layer<S> for AuthMiddlewareLayer {
     type Service = AuthMiddleware<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        AuthMiddleware { inner: service }
+        AuthMiddleware { inner: service, pkey: self.pkey.clone() }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct AuthMiddleware<S> {
     inner: S,
+    pkey: DecodingKey,
 }
 
 type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
@@ -671,28 +672,19 @@ where
     fn call(&mut self, req: http::Request<axum::body::Body>) -> Self::Future {
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
-
+        let test = self.pkey.clone();
+        println!("pkey: {:?}", test);
         Box::pin(async move {
             let called_fn = req.uri().path();
             let called_fn_without_service = called_fn.replace("/speedupdate.Repo/", "");
 
             let (parts, body) = req.into_parts();
-            let encoded_pkcs8 = fs::read_to_string("/etc/speedupdate/pkey").unwrap();
-            let decoded_pkcs8 = general_purpose::STANDARD.decode(encoded_pkcs8).unwrap();
-            let rng = &rand::SystemRandom::new();
-            let pair = EcdsaKeyPair::from_pkcs8(
-                &ring::signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-                &decoded_pkcs8,
-                rng,
-            )
-            .unwrap();
-            let decoding_key = &DecodingKey::from_ec_der(pair.public_key().as_ref());
 
             let content = body
                 .collect()
                 .await
-                .map_err(|_err| {
-                    println!("error");
+                .map_err(|err| {
+                    tracing::error!("Unable to get body content: {}", err.to_string());
                 })
                 .unwrap()
                 .to_bytes();
@@ -716,7 +708,7 @@ where
                         let validation = &mut Validation::new(Algorithm::ES256);
                         validation.validate_exp = false;
                         let t_string = t.to_str().unwrap().replace("Bearer ", "");
-                        match decode::<Claims>(&t_string, decoding_key, validation) {
+                        match decode::<Claims>(&t_string, &test, validation) {
                             Ok(token_data) => {
                                 // Compare body with scope
                                 if called_fn_without_service == "Init"
@@ -727,7 +719,7 @@ where
                                         .call(http::Request::from_parts(parts, body))
                                         .await
                                         .map_err(|_err| {
-                                            println!("error");
+                                            tracing::error!("Unable to create http response");
                                         })
                                         .unwrap();
                                     Ok(response)
