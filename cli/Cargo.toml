@@ -1,6 +1,6 @@
 [package]
 name = "speedupdate"
-version = "0.10.8"
+version = "0.10.9"
 authors = ["Vincent Rouillé <vincent@speedy37.fr>"]
 license = "MIT"
 edition = "2021"
