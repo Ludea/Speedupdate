@@ -625,7 +625,7 @@ pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
     routes.add_service(service);
 
     let layer = tower::ServiceBuilder::new()
-        .layer(AuthMiddlewareLayer { pkey: decoded_pkey.clone() })
+        .layer(AuthMiddlewareLayer { pubkey: decoded_pkey.clone() })
         .into_inner();
 
     routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(layer)
@@ -633,21 +633,21 @@ pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
 
 #[derive(Debug, Clone)]
 pub struct AuthMiddlewareLayer {
-    pkey: DecodingKey,
+    pubkey: DecodingKey,
 }
 
 impl<S> Layer<S> for AuthMiddlewareLayer {
     type Service = AuthMiddleware<S>;
 
     fn layer(&self, service: S) -> Self::Service {
-        AuthMiddleware { inner: service, pkey: self.pkey.clone() }
+        AuthMiddleware { inner: service, pubkey: self.pubkey.clone() }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct AuthMiddleware<S> {
     inner: S,
-    pkey: DecodingKey,
+    pubkey: DecodingKey,
 }
 
 type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
@@ -671,8 +671,8 @@ where
     fn call(&mut self, req: http::Request<axum::body::Body>) -> Self::Future {
         let clone = self.inner.clone();
         let mut inner = std::mem::replace(&mut self.inner, clone);
-        let test = self.pkey.clone();
-        println!("pkey: {:?}", test);
+        let jwt_pubkey = self.pubkey.clone();
+
         Box::pin(async move {
             let called_fn = req.uri().path();
             let called_fn_without_service = called_fn.replace("/speedupdate.Repo/", "");
@@ -704,10 +704,10 @@ where
 
                 match parts.headers.get("authorization") {
                     Some(t) => {
-                        let validation = &mut Validation::new(Algorithm::ES256);
+                        let validation = &mut Validation::new(Algorithm::EdDSA);
                         validation.validate_exp = false;
                         let t_string = t.to_str().unwrap().replace("Bearer ", "");
-                        match decode::<Claims>(&t_string, &test, validation) {
+                        match decode::<Claims>(&t_string, &jwt_pubkey, validation) {
                             Ok(token_data) => {
                                 // Compare body with scope
                                 if called_fn_without_service == "Init"
