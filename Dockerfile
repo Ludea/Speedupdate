@@ -11,8 +11,6 @@ RUN chmod +x /usr/local/bin/speedupdate
 
 WORKDIR /opt/speedupdate
 
-COPY pkey /etc/speedupdate/pkey
-
 EXPOSE 8012
 
 CMD ["speedupdateserver"] 

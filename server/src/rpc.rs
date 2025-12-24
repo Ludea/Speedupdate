@@ -17,7 +17,6 @@ use libspeedupdate::{
 };
 use notify::{Config, RecursiveMode, Watcher};
 use prost::Message;
-
 use serde::{Deserialize, Serialize};
 use speedupdaterpc::repo_server::{Repo, RepoServer};
 use speedupdaterpc::{

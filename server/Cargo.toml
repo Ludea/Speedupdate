@@ -33,7 +33,6 @@ http = "1.1.0"
 tower = { version = "0.5", features = ["full"] }
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 jsonwebtoken = { version = "10.0.0", features = ["rust_crypto"] }
-ring = "0.17.8"
 http-body-util = "0.1.2"
 zip = "3.0.0"
 
