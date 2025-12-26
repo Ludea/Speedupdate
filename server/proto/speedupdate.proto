@@ -17,6 +17,7 @@ service Repo {
   rpc Available_packages (RepositoryPath) returns (ListPackVerBin);
   rpc Delete_file (FileToDelete) returns (Empty);
   rpc Delete_repo (RepositoryPath) returns (Empty);
+  rpc Has_Launcher_binaries (RepositoryPath) returns (Empty);
   rpc Build (BuildInput) returns (stream BuildOutput);
 }
 

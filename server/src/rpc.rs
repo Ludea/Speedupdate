@@ -386,6 +386,33 @@ impl Repo for RemoteRepository {
         }
     }
 
+    async fn has_launcher_binaries(
+        &self,
+        request: Request<RepositoryPath>,
+    ) -> Result<Response<Empty>, Status> {
+        let repository_path = request.into_inner().path;
+        let repository = Path::new(&repository_path);
+        let launcher_folder = repository.join("launcher");
+        let launcher_binaries = launcher_folder.join("binaries");
+
+        if launcher_binaries.exists() {
+            match is_dir_empty(&launcher_binaries) {
+                Ok(is_empty) => {
+                    if is_empty {
+                        tracing::error!("There are no launcher binaries");
+                        Err(Status::internal("There are no launcher binaries"))
+                    } else {
+                        let response = Empty {};
+                        Ok(Response::new(response))
+                    }
+                }
+                Err(err) => Err(Status::internal(err.to_string())),
+            }
+        } else {
+            Err(Status::internal("This repository doesn't exist"))
+        }
+    }
+
     type BuildStream = ResponseBuildStream;
 
     async fn build(
@@ -592,6 +619,27 @@ fn send_message(
     tokio::spawn(async move {
         let _ = tx.send(Result::<_, Status>::Ok(message)).await;
     });
+}
+
+fn is_dir_empty(path: &Path) -> std::io::Result<bool> {
+    if !path.exists() {
+        return Ok(true);
+    }
+
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let file_type = entry.file_type()?;
+
+        if file_type.is_file() {
+            return Ok(false);
+        }
+
+        if file_type.is_dir() && !is_dir_empty(&entry.path())? {
+            return Ok(false);
+        }
+    }
+
+    Ok(true)
 }
 
 async fn with_cancellation_handler<FRequest, FCancellation>(
