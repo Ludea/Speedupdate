@@ -47,7 +47,7 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Build binaries
         run: cargo build --release --verbose
-      - name: Move Macos and Linux binaries
+      - name: Move Macos binaries
         if: matrix.platform != 'windows-latest'
         run: |
            mv target/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}
