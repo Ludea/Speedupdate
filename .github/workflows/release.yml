@@ -23,7 +23,7 @@ jobs:
         ignorePreReleases: true
         configuration: ".github/release_note_config.json"
     - name: Install deps
-      run: sudo apt update && sudo apt install -y musl-tools musl-dev 
+      run: sudo apt update && sudo apt install -y musl-tools musl-dev
     - name: Setup rust
       uses: dtolnay/rust-toolchain@stable
       with:
@@ -32,7 +32,7 @@ jobs:
     - name: Install cargo-deb
       run: cargo install cargo-deb
     - name: Install cargo-generate-rpm
-      run: cargo install cargo-generate-rpm 
+      run: cargo install cargo-generate-rpm
     - name: Install cargo-aur
       run: cargo install cargo-aur
     - name: Clippy
@@ -47,7 +47,7 @@ jobs:
         cargo deb -p speedupdateserver --target x86_64-unknown-linux-musl --no-build
     - name: Create rpm
       run: |
-        cp target/x86_64-unknown-linux-musl/release/speedupdate target/release/speedupdate 
+        cp target/x86_64-unknown-linux-musl/release/speedupdate target/release/speedupdate
         cargo generate-rpm -p cli --target x86_64-unknown-linux-musl
         cargo generate-rpm -p server --target x86_64-unknown-linux-musl
 #    - name: Create PKG
@@ -99,7 +99,7 @@ jobs:
         repo: "speedupdate"
         distro: "ubuntu"
         release: "xenial"
-        file: "target/x86_64-unknown-linux-musl/debian/speedupdateserver*.deb" 
+        file: "target/x86_64-unknown-linux-musl/debian/speedupdateserver*.deb"
     - name: Upload speedupdate rpm to Cloudsmith
       uses: cloudsmith-io/action@master
       with:
@@ -112,7 +112,7 @@ jobs:
         distro: "fedora"
         release: "37"
         version: "37"
-        file: "target/x86_64-unknown-linux-musl/generate-rpm/speedupdate-*.rpm" 
+        file: "target/x86_64-unknown-linux-musl/generate-rpm/speedupdate-*.rpm"
     - name: Upload speedupdateserver rpm to Cloudsmith
       uses: cloudsmith-io/action@master
       with:
@@ -125,7 +125,7 @@ jobs:
         distro: "fedora"
         release: "37"
         version: "37"
-        file: "target/x86_64-unknown-linux-musl/generate-rpm/speedupdateserver*.rpm" 
+        file: "target/x86_64-unknown-linux-musl/generate-rpm/speedupdateserver*.rpm"
 
   build-aarch64-linux:
     runs-on: ubuntu-22.04
@@ -178,7 +178,7 @@ jobs:
     - name: Move binaries into parent folder
       run: |
         mv speedupdate-${{ github.ref_name }}_linux_amd64/release/speedupdate-${{ github.ref_name }}_linux_amd64 speedupdate-${{ github.ref_name }}_linux_amd64/speedupdate-${{ github.ref_name }}_linux_amd64
-        mv speedupdate-${{ github.ref_name }}_linux_amd64/release/speedupdateserver-${{ github.ref_name }}_linux_amd64 speedupdate-${{ github.ref_name }}_linux_amd64/speedupdateserver-${{ github.ref_name }}_linux_amd64  
+        mv speedupdate-${{ github.ref_name }}_linux_amd64/release/speedupdateserver-${{ github.ref_name }}_linux_amd64 speedupdate-${{ github.ref_name }}_linux_amd64/speedupdateserver-${{ github.ref_name }}_linux_amd64
     - name: extract version without "v"
       run: |
         CONTAINER_TAG="${{ github.ref_name }}"
@@ -195,57 +195,51 @@ jobs:
     - name: Build container
       uses: docker/build-push-action@v6
       with:
-        file: Dockerfile      
+        file: Dockerfile
         context: .
         push: true
         tags: |
           ludea/speedupdate:${{ env.VERSION }}
           ludea/speedupdate:latest
-        platforms: linux/amd64, linux/arm64         
+        platforms: linux/amd64, linux/arm64
         build-args: |
           VERSION=${{ github.ref_name }}
 
-  build-windows:
-    runs-on: windows-2022
+  release-macos-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: ubuntu-latest
+            target: linux_amd64
+          - platform: macos-13
+            target: macos_x86_64
+          - platform: macos-14
+            target: macos_aarch64
+          - platform: windows-2022
+            target: windows_x86_64
+    runs-on: ${{ matrix.platform }}
     permissions:
       contents: write
     steps:
     - uses: actions/checkout@v6
-    - name: Install yq
-      run: |
-        choco install yq
-        echo "VERSION=$(yq '.package.version' lib/Cargo.toml)" >> $GITHUB_ENV
     - name: Build Binaries
+      run: cargo build --verbose --release
+    - name: add tags to Windows binaries
+      if: matrix.platform == 'windows-2022'
       run: |
-        cargo build --verbose --release
         mv target/release/speedupdate.exe target/release/speedupdate-${{ github.ref_name }}_x86_64.exe
         mv target/release/speedupdateserver.exe target/release/speedupdateserver-${{ github.ref_name }}_x86_64.exe
-    - name: Upload file
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ github.ref_name }}
-        name: Speedupdate ${{ github.ref_name }}
-        files: |
-          target/release/speedupdate-${{ github.ref_name }}_x86_64.exe
-          target/release/speedupdateserver-${{ github.ref_name }}_x86_64.exe
-
-  build-macOS:
-    runs-on: macos-14
-    permissions:
-      contents: write
-    steps:
-    - uses: actions/checkout@v6
-    - name: Build Binaries
+    - name: add tags to macOS binaries
+      if: matrix.platform == 'macos-14' || matrix.platform == 'macos-13'
       run: |
-        cargo build --verbose --release
-        mv target/release/speedupdate target/release/speedupdate-${{ github.ref_name }}_darwin_x86_64
-        mv target/release/speedupdateserver target/release/speedupdateserver-${{ github.ref_name }}_darwin_x86_64
+        mv target/release/speedupdate target/release/speedupdate-${{ github.ref_name }}_${{ matrix.target }}
+        mv target/release/speedupdateserver target/release/speedupdateserver-${{ github.ref_name }}_${{ matrix.target }}
     - name: Upload file
       uses: softprops/action-gh-release@v2
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
         files: |
-          target/release/speedupdate-cli-${{ github.ref_name }}_darwin_x86_64
-          target/release/speedupdateserver-${{ github.ref_name }}_darwin_x86_64
-
+          target/release/speedupdate-${{ github.ref_name }}_*
+          target/release/speedupdateserver-${{ github.ref_name }}_*

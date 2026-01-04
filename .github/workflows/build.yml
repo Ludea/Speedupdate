@@ -16,27 +16,23 @@ jobs:
       matrix:
         include:
           - platform: ubuntu-latest
-            rust_target: x86_64-unknown-linux-musl
             target: linux_amd64
-          - platform: macos-latest
-            rust_target: x86_64-apple-darwin
+          - platform: macos-15-intel
             target: macos_x86_64
           - platform: macos-latest
-            rust_target: aarch64-apple-darwin
             target: macos_aarch64
           - platform: windows-latest
-            rust_target: x86_64-pc-windows-msvc
             target: windows_x86_64
 
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@v6
-      - name: Set Github sha short (Linux and Macos) 
+      - name: Set Github sha short (Linux and Macos)
         if: matrix.platform != 'windows-latest'
-        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
       - name: Set Github sha short (Windows)
         if: matrix.platform == 'windows-latest'
-        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $env:GITHUB_ENV 
+        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $env:GITHUB_ENV
       - name: install deps (Ubuntu)
         if: matrix.platform == 'ubuntu-latest'
         run: sudo apt update && sudo apt install -y musl-dev musl-tools
@@ -44,24 +40,23 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
-          targets: ${{ matrix.rust_target }}
       - uses: Swatinem/rust-cache@v2
       - name: Clippy
         run: cargo clippy --all-targets --all-features -- -D warnings
       - name: fmt
         run: cargo fmt --all -- --check
       - name: Build binaries
-        run: cargo build --release --verbose --target ${{ matrix.rust_target }}
+        run: cargo build --release --verbose
       - name: Move Macos and Linux binaries
         if: matrix.platform != 'windows-latest'
         run: |
-           mv target/${{ matrix.rust_target }}/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}
-           mv target/${{ matrix.rust_target }}/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}
+           mv target/release/speedupdate target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}
+           mv target/release/speedupdateserver target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}
       - name: Move Windows binaries
         if: matrix.platform == 'windows-latest'
         run: |
-           mv target/${{ matrix.rust_target }}/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}.exe
-           mv target/${{ matrix.rust_target }}/release/speedupdateserver.exe target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}.exe
+           mv target/release/speedupdate.exe target/release/speedupdate-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target}}.exe
+           mv target/release/speedupdateserver.exe target/release/speedupdateserver-${{ env.GITHUB_SHA_SHORT }}_${{ matrix.target }}.exe
       - name: Upload artifacts
         uses: actions/upload-artifact@v6
         with:
@@ -80,7 +75,7 @@ jobs:
     - name: Set Github sha short
       run: |
         git config --global --add safe.directory /__w/Speedupdate/Speedupdate
-        echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+        echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
     - name: Clippy
       run: cargo clippy --all-targets --all-features -- -D warnings
     - name: fmt
@@ -106,7 +101,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set Github sha short
-        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV 
+        run: echo "GITHUB_SHA_SHORT=$(git rev-parse --short ${{ github.sha }})" >> $GITHUB_ENV
       - uses: actions/download-artifact@v7
         with:
           pattern: speedupdate-*
