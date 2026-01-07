@@ -23,7 +23,6 @@ impl FileRepository {
     where
         T: for<'de> serde::Deserialize<'de>,
     {
-        println!("one more from file");
         let path = self.dir.join(file_name);
         let raw = tokio::fs::read(&path).await.map_err(|err| RepositoryError::file(&path, err))?;
         let decoded =
