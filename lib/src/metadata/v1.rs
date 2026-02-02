@@ -206,6 +206,7 @@ impl Operation {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum State {
     New,
     Stable { version: CleanName },
