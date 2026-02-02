@@ -1,9 +1,10 @@
+use std::env;
+use std::net::SocketAddr;
+
 use axum::Router;
 use base64::{engine::general_purpose, Engine};
 use dotenvy::dotenv;
 use jsonwebtoken::DecodingKey;
-use std::env;
-use std::net::SocketAddr;
 use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
@@ -30,12 +31,33 @@ async fn main() {
 
     dotenv().ok();
     let decoding_key = if let Ok(pubkey) = env::var("JWT_PUBKEY") {
-        let der = general_purpose::STANDARD.decode(pubkey).unwrap();
+        let der = match general_purpose::STANDARD.decode(pubkey) {
+            Ok(der) => der,
+            Err(error) => {
+                tracing::error!("Failed to decode JWT_PUBKEY from base64: {}", error);
+                std::process::exit(1);
+            }
+        };
         DecodingKey::from_ed_der(&der)
     } else if let Ok(pubkey) = std::fs::read_to_string("public.pem") {
-        DecodingKey::from_ed_pem(pubkey.as_bytes()).unwrap()
+        match DecodingKey::from_ed_pem(pubkey.as_bytes()) {
+            Ok(key) => key,
+            Err(error) => {
+                tracing::error!("Failed to read JWT public key from public.pem: {}", error);
+                std::process::exit(1);
+            }
+        }
     } else if let Ok(pubkey) = std::fs::read_to_string("/etc/speedupdate/jwt_pubkey") {
-        DecodingKey::from_ed_pem(pubkey.as_bytes()).unwrap()
+        match DecodingKey::from_ed_pem(pubkey.as_bytes()) {
+            Ok(key) => key,
+            Err(error) => {
+                tracing::error!(
+                    "Failed to read JWT public key from /etc/speedupdate/jwt_pubkey: {}",
+                    error
+                );
+                std::process::exit(1);
+            }
+        }
     } else {
         tracing::error!("You have to create a .env file with JWT_PUBKEY key");
         std::process::exit(1);
