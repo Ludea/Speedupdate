@@ -14,7 +14,7 @@ use axum::{
         sse::{Event, Sse},
         IntoResponse,
     },
-    routing::{get, get_service, on, post, MethodFilter},
+    routing::{get, post},
     Router,
 };
 use futures::stream::Stream;
@@ -70,14 +70,14 @@ pub fn http_api() -> Router {
         .route("/metrics", get(move || ready(recorder_handle.render())))
         .route(
             "/{repo}/{type}/binaries/{platform}",
-            on(MethodFilter::POST, {
+            post({
                 let progress_tx = progress_tx.clone();
                 move |header, path, multipart| {
                     save_binaries(progress_tx.clone(), header, path, multipart)
                 }
-            })
-            .on(MethodFilter::GET, get_service(serve_dir)),
+            }),
         )
+        .nest_service("/downloads", serve_dir)
         .route(
             "/{repo}/launcher",
             post({
