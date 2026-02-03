@@ -187,7 +187,6 @@ async fn upload(
         );
 
         sleep(Duration::from_secs(2)).await;
-
         match is_zip_file(std::path::Path::new(&format!(
             "{}/{}",
             &upload_path.display(),
@@ -242,7 +241,6 @@ fn is_zip_file(file_path: &std::path::Path) -> io::Result<bool> {
 
 fn extract_zip(file_name: String) -> Result<(), ZipError> {
     let file = fs::File::open(&file_name).unwrap();
-
     let mut archive = zip::ZipArchive::new(file)?;
 
     for i in 0..archive.len() {
@@ -260,35 +258,33 @@ fn extract_zip(file_name: String) -> Result<(), ZipError> {
         }
 
         let fullpath = std::path::Path::new(&file_name);
-        if let Some(path_without_zip) = fullpath.parent() {
-            let outpath = path_without_zip.join(file_enclosed_name);
-            if file.is_dir() {
-                tracing::info!("File {} extracted to \"{}\"", i, outpath.display());
-                fs::create_dir_all(&outpath).unwrap();
-            } else {
-                tracing::info!(
-                    "File {} extracted to \"{}\" ({} bytes)",
-                    i,
-                    outpath.display(),
-                    file.size()
-                );
-                if let Some(p) = outpath.parent() {
-                    if !p.exists() {
-                        fs::create_dir_all(p).unwrap();
-                    }
+        let outpath = fullpath.with_extension("").join(file_enclosed_name);
+        if file.is_dir() {
+            tracing::info!("File {} extracted to \"{}\"", i, outpath.display());
+            fs::create_dir_all(&outpath).unwrap();
+        } else {
+            tracing::info!(
+                "File {} extracted to \"{}\" ({} bytes)",
+                i,
+                outpath.display(),
+                file.size()
+            );
+            if let Some(p) = outpath.parent() {
+                if !p.exists() {
+                    fs::create_dir_all(p).unwrap();
                 }
-                let mut outfile = fs::File::create(&outpath).unwrap();
-                io::copy(&mut file, &mut outfile).unwrap();
             }
+            let mut outfile = fs::File::create(&outpath).unwrap();
+            io::copy(&mut file, &mut outfile).unwrap();
+        }
 
-            // Get and Set permissions
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
+        // Get and Set permissions
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
 
-                if let Some(mode) = file.unix_mode() {
-                    fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).unwrap();
-                }
+            if let Some(mode) = file.unix_mode() {
+                fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).unwrap();
             }
         }
     }
