@@ -35,7 +35,7 @@ tower = { version = "0.5", features = ["full"] }
 notify = { version = "8", default-features = false, features = ["macos_fsevent"] }
 jsonwebtoken = { version = "10.0.0", features = ["rust_crypto"] }
 http-body-util = "0.1.2"
-zip = "7.0"
+zip = "8.0"
 
 [build-dependencies]
 tonic-build = "0.14"
