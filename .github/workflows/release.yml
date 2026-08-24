@@ -67,7 +67,7 @@ jobs:
           target/x86_64-unknown-linux-musl/debian/*.deb
           target/x86_64-unknown-linux-musl/generate-rpm/*.rpm
     - name: Upload file into Release page
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
@@ -158,7 +158,7 @@ jobs:
           target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
           target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
     - name: Upload file into Release page
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
@@ -236,7 +236,7 @@ jobs:
         mv target/release/speedupdate target/release/speedupdate-${{ github.ref_name }}_${{ matrix.target }}
         mv target/release/speedupdateserver target/release/speedupdateserver-${{ github.ref_name }}_${{ matrix.target }}
     - name: Upload file
-      uses: softprops/action-gh-release@v2
+      uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
