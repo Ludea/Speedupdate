@@ -23,7 +23,7 @@ libspeedupdate = { path = "../lib" }
 tonic = { version = "0.14", features = ["gzip"] }
 tonic-web = "0.14.0"
 tonic-prost = "0.14"
-tower-http = { version = "0.6", features = ["fs", "trace", "cors"] }
+tower-http = { version = "0.7", features = ["fs", "trace", "cors"] }
 tokio = { version = "1", features = ["macros", "net", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["net", "sync"] }
 tokio-util = { version = "0.7", features = ["io"] }
