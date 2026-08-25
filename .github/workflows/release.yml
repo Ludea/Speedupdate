@@ -13,7 +13,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: "Build Changelog"
       id: build_changelog
       uses: mikepenz/release-changelog-builder-action@v6
@@ -134,7 +134,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Install deps
       run: sudo apt update && sudo apt install -y zstd
     - name: Install cargo deb
@@ -171,7 +171,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [build-x86_64-linux, build-aarch64-linux]
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - uses: actions/download-artifact@v8
       with:
         pattern: speedupdate-*
@@ -222,7 +222,7 @@ jobs:
     permissions:
       contents: write
     steps:
-    - uses: actions/checkout@v6
+    - uses: actions/checkout@v7
     - name: Build Binaries
       run: cargo build --verbose --release
     - name: add tags to Windows binaries
