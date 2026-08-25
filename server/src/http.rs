@@ -166,9 +166,7 @@ async fn upload(
             };
 
             let mut file =
-                File::create(format!("{}/{}", &upload_path.display().to_string(), file_name))
-                    .await
-                    .unwrap();
+                File::create(format!("{}/{}", upload_path.display(), file_name)).await.unwrap();
             let mut progression = 0;
             while let Some(chunk) =
                 field.chunk().await.map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?
@@ -187,20 +185,17 @@ async fn upload(
         );
 
         sleep(Duration::from_secs(2)).await;
-        match is_zip_file(std::path::Path::new(&format!(
-            "{}/{}",
-            &upload_path.display(),
-            file_name
-        ))) {
+        match is_zip_file(std::path::Path::new(&format!("{}/{}", upload_path.display(), file_name)))
+        {
             Ok(result) => {
                 if result {
                     if let Err(err) =
-                        extract_zip(format!("{}/{}", &upload_path.display(), file_name))
+                        extract_zip(format!("{}/{}", upload_path.display(), file_name))
                     {
                         return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
                     }
                     if let Err(err) =
-                        fs::remove_file(format!("{}/{}", &upload_path.display(), file_name))
+                        fs::remove_file(format!("{}/{}", upload_path.display(), file_name))
                     {
                         return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
                     }

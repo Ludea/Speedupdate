@@ -437,7 +437,7 @@ where
 
     info!("found update path {:?}", package_names);
 
-    let packages_metadata = stream::iter(package_names.into_iter())
+    let packages_metadata = stream::iter(package_names)
         .map(|package_name| repository.package_metadata(package_name))
         .buffered(4)
         .map_ok(Arc::new)
