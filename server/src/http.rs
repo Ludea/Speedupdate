@@ -90,7 +90,13 @@ pub fn http_api() -> Router {
         .route("/{repo}/{type}/progression", get(move || sse_handler(progress_tx)))
         .layer(DefaultBodyLimit::disable())
         .route_layer(middleware::from_fn(track_metrics))
-        .layer(CorsLayer::new().allow_origin(Any).allow_headers(Any).expose_headers(Any))
+        .layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any)
+                .expose_headers(Any),
+        )
         .layer(TraceLayer::new_for_http())
 }
 

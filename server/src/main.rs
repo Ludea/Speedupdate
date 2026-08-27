@@ -66,7 +66,11 @@ async fn main() {
     let addr = SocketAddr::from(([0, 0, 0, 0], 8012));
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
 
-    let cors_layer = CorsLayer::new().allow_origin(Any).allow_headers(Any).expose_headers(Any);
+    let cors_layer = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any)
+        .expose_headers(Any);
 
     let grpc = rpc::rpc_api(&decoding_key);
     let http = http::http_api();
