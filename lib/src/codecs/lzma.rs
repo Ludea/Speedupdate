@@ -1,84 +1,88 @@
-use xz2::stream::{Action, LzmaOptions, Status, Stream};
+use lzma_rust2::{Action, LzmaOptions, LzmaStream, LzmaWriter, Status};
 
 use super::Coder;
 use crate::io;
 
+enum Inner<W: io::Write> {
+    Encoder(LzmaWriter<W>),
+    Decoder { w: W, stream: LzmaStream },
+}
+
 pub struct Writer<W: io::Write> {
-    w: W,
-    raw: Stream,
-    is_encoder: bool,
+    inner: Inner<W>,
 }
 
 impl<W: io::Write> Writer<W> {
     pub fn decompressor(w: W) -> Result<Self, io::Error> {
-        Ok(Self { w, raw: Stream::new_lzma_decoder(u64::MAX)?, is_encoder: false })
+        let stream = LzmaStream::new_mem_limit(u32::MAX, None);
+        Ok(Self { inner: Inner::Decoder { w, stream } })
     }
 
     pub fn compressor(w: W, preset: u32) -> Result<Self, io::Error> {
-        Ok(Self {
-            w,
-            raw: Stream::new_lzma_encoder(&LzmaOptions::new_preset(preset)?)?,
-            is_encoder: true,
-        })
+        let options = LzmaOptions::with_preset(preset);
+        let enc = LzmaWriter::new_use_header(w, &options, None)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        Ok(Self { inner: Inner::Encoder(enc) })
     }
 }
 
 impl<W: io::Write> Coder<W> for Writer<W> {
     fn get_mut(&mut self) -> &mut W {
-        &mut self.w
+        match &mut self.inner {
+            Inner::Encoder(w) => w.inner_mut(),
+            Inner::Decoder { w, .. } => w,
+        }
     }
 
-    fn finish(mut self) -> io::Result<W> {
-        let mut buffer = [0u8; io::BUFFER_SIZE];
-        loop {
-            let before_out = self.raw.total_out();
-            let res = self.raw.process(&[], &mut buffer, Action::Finish)?;
-            let size_out = (self.raw.total_out() - before_out) as usize;
-            self.w.write_all(&buffer[..size_out])?;
-            if res == Status::StreamEnd {
-                return Ok(self.w);
+    fn finish(self) -> io::Result<W> {
+        match self.inner {
+            Inner::Encoder(w) => w.finish().map_err(|e| io::Error::new(io::ErrorKind::Other, e)),
+            Inner::Decoder { mut w, mut stream } => {
+                let mut buffer = [0u8; io::BUFFER_SIZE];
+                loop {
+                    let res = stream
+                        .process(&[], &mut buffer, Action::Finish)
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                    w.write_all(&buffer[..res.bytes_produced])?;
+                    if res.status == Status::StreamEnd {
+                        return Ok(w);
+                    }
+                }
             }
         }
     }
 
     fn finish_boxed(self: Box<Self>) -> io::Result<W> {
-        self.finish()
+        (*self).finish()
     }
 }
 
 impl<W: io::Write> io::Write for Writer<W> {
     fn write(&mut self, mut input: &[u8]) -> io::Result<usize> {
-        let mut buffer = [0u8; io::BUFFER_SIZE];
-        let mut written = 0;
-        while !input.is_empty() {
-            let before_in = self.raw.total_in();
-            let before_out = self.raw.total_out();
-            let res = self.raw.process(input, &mut buffer, Action::Run)?;
-            let size_in = (self.raw.total_in() - before_in) as usize;
-            let size_out = (self.raw.total_out() - before_out) as usize;
-            input = &input[size_in..];
-            self.w.write_all(&buffer[0..size_out])?;
-            written += size_in;
-            if res == Status::StreamEnd {
-                break;
+        match &mut self.inner {
+            Inner::Encoder(w) => w.write(input),
+            Inner::Decoder { w, stream } => {
+                let mut buffer = [0u8; io::BUFFER_SIZE];
+                let total_in = input.len();
+                while !input.is_empty() {
+                    let res = stream
+                        .process(input, &mut buffer, Action::Run)
+                        .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+                    input = &input[res.bytes_consumed..];
+                    w.write_all(&buffer[..res.bytes_produced])?;
+                    if res.status == Status::StreamEnd {
+                        break;
+                    }
+                }
+                Ok(total_in)
             }
         }
-        Ok(written)
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        if self.is_encoder {
-            let mut buffer = [0u8; io::BUFFER_SIZE];
-            loop {
-                let before_out = self.raw.total_out();
-                let res = self.raw.process(&[], &mut buffer, Action::FullFlush)?;
-                let size_out = (self.raw.total_out() - before_out) as usize;
-                self.w.write_all(&buffer[..size_out])?;
-                if res == Status::StreamEnd {
-                    break;
-                }
-            }
+        match &mut self.inner {
+            Inner::Encoder(w) => w.flush(),
+            Inner::Decoder { w, .. } => w.flush(),
         }
-        self.w.flush()
     }
 }

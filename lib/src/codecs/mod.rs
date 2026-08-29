@@ -361,8 +361,9 @@ where
     #[cfg(feature = "lzma")]
     if encoder_options.name() == "lzma" {
         let mut preset = encoder_options.get_u32_range(&["", "preset"], 6, 0..=9)?;
-        if encoder_options.get_bool(&["extreme"], 1)? {
-            preset |= lzma_sys::LZMA_PRESET_EXTREME;
+        let extreme = encoder_options.get_bool(&["extreme"], 1)?;
+        if extreme && preset < 9 {
+            preset = preset.min(9);
         }
         return Ok(BoxCoderDirect::boxed(lzma::Writer::compressor(output, preset)?));
     }
