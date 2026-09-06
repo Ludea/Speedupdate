@@ -101,14 +101,14 @@ impl Repo for RemoteRepository {
             .options
             .unwrap_or(Options { build_path: ".".to_string(), upload_path: ".".to_string() });
 
-        let mut subfolders = Vec::new();
+        let mut subfolders: Vec<&str> = Vec::new();
 
         for host in platforms.clone() {
             match Platforms::try_from(host) {
-                Ok(Platforms::Win64) => subfolders.push("/win64"),
-                Ok(Platforms::MacosX8664) => subfolders.push("/macos_x86_64"),
-                Ok(Platforms::MacosArm64) => subfolders.push("/macos_arm64"),
-                Ok(Platforms::Linux) => subfolders.push("/linux"),
+                Ok(Platforms::Win64) => subfolders.push("win64"),
+                Ok(Platforms::MacosX8664) => subfolders.push("macos_x86_64"),
+                Ok(Platforms::MacosArm64) => subfolders.push("macos_arm64"),
+                Ok(Platforms::Linux) => subfolders.push("linux"),
                 _ => {}
             }
         }
@@ -117,7 +117,7 @@ impl Repo for RemoteRepository {
             let mut state = RepoStatusOutput { status: Vec::new() };
             for folder in subfolders.clone() {
                 state.status.push(
-                    match repo_state(repo_request.clone() + "/" + folder, options.clone()) {
+                    match repo_state(repo_request.clone(), folder, options.clone()) {
                         Ok(local_state) => local_state,
                         Err(err) => return Err(Status::internal(err)),
                     },
@@ -143,43 +143,44 @@ impl Repo for RemoteRepository {
             .unwrap();
 
             for folder in subfolders.clone() {
-                if Path::new(&(repo_request.clone() + folder + "/current")).exists() {
+                let platform_path = format!("{}/{}", repo_request, folder);
+                if Path::new(&format!("{}/current", platform_path)).exists() {
                     watcher
                         .watch(
-                            Path::new(&(repo_request.clone() + folder + "/current")),
+                            Path::new(&format!("{}/current", platform_path)),
                             RecursiveMode::NonRecursive,
                         )
                         .unwrap();
                 }
                 watcher
                     .watch(
-                        Path::new(&(repo_request.clone() + folder + "/packages")),
+                        Path::new(&format!("{}/packages", platform_path)),
                         RecursiveMode::NonRecursive,
                     )
                     .unwrap();
                 watcher
                     .watch(
-                        Path::new(&(repo_request.clone() + folder + "/versions")),
+                        Path::new(&format!("{}/versions", platform_path)),
                         RecursiveMode::NonRecursive,
                     )
                     .unwrap();
-                if Path::new(&(repo_request.clone() + folder + &options.build_path)).exists() {
+                if Path::new(&format!("{}/{}", platform_path, options.build_path)).exists() {
                     watcher
                         .watch(
-                            Path::new(&(repo_request.clone() + folder + "/.build")),
+                            Path::new(&format!("{}/.build", platform_path)),
                             RecursiveMode::NonRecursive,
                         )
                         .unwrap();
                 }
             }
+
             let mut repo_array = RepoStatusOutput { status: Vec::new() };
-            //println!("client disconnect");
 
             tokio::task::spawn(async move {
                 let _watcher = watcher;
                 while let Some(Ok(_)) = local_rx.recv().await {
                     for folder in subfolders.clone() {
-                        match repo_state(repo_watch.clone() + folder, options.clone()) {
+                        match repo_state(repo_watch.clone(), folder, options.clone()) {
                             Ok(new_state) => {
                                 repo_array.status.push(new_state);
                             }
@@ -545,8 +546,10 @@ impl Repo for RemoteRepository {
     }
 }
 
-fn repo_state(path: String, options: Options) -> Result<RepoStatus, String> {
-    let repo = Repository::new(PathBuf::from(path.clone()));
+fn repo_state(repo_path: String, platform: &str, options: Options) -> Result<RepoStatus, String> {
+    let platform_path = format!("{}/{}", repo_path, platform);
+    let repo = Repository::new(PathBuf::from(platform_path.clone()));
+
     let mut list_versions: Vec<Versions> = Vec::new();
     match repo.versions() {
         Ok(value) => {
@@ -567,7 +570,6 @@ fn repo_state(path: String, options: Options) -> Result<RepoStatus, String> {
     };
 
     let mut list_packages = Vec::new();
-
     let size = match repo.packages() {
         Ok(value) => {
             for val in value.iter() {
@@ -584,9 +586,8 @@ fn repo_state(path: String, options: Options) -> Result<RepoStatus, String> {
     };
 
     let mut available_binaries = Vec::new();
-    let temp_binaries_folder = format!("{}/{}", path, options.upload_path);
-    let binaries_folder = Path::new(&temp_binaries_folder);
-    match fs::read_dir(binaries_folder) {
+    let binaries_folder = format!("{}/{}/{}", repo_path, options.upload_path, platform);
+    match fs::read_dir(Path::new(&binaries_folder)) {
         Ok(dir) => {
             for entry in dir {
                 let entry = entry.unwrap();
@@ -600,16 +601,14 @@ fn repo_state(path: String, options: Options) -> Result<RepoStatus, String> {
         Err(err) => return Err("Available binaries: ".to_owned() + &err.to_string()),
     }
 
-    let state = RepoStatus {
+    Ok(RepoStatus {
         size,
         current_version,
         versions: list_versions,
         packages: list_packages,
         available_packages,
         available_binaries,
-    };
-
-    Ok(state)
+    })
 }
 
 fn send_message(
