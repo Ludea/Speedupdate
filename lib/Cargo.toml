@@ -25,7 +25,7 @@ tokio = { version = "1.0", default-features = false, features = ["io-util", "rt"
 tokio-util = { version = "0.7", features = ["io"] }
 tracing = { version = "0.1", features = ["log"] }
 
-brotli = { package = "brotli", version = "8.0", optional = true }
+brotli = { package = "brotli", version = "9.0", optional = true }
 ue4pak = { git = "https://github.com/Speedy37/ue4pak-rs.git", optional = true }
 vcdiff = { git = "https://github.com/Speedy37/vcdiff-rs.git", package = "vcdiff-rs", optional = true }
 lzma-rust2 = { version = "0.20", optional = true }
