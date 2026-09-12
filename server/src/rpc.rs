@@ -144,42 +144,98 @@ impl Repo for RemoteRepository {
 
             for folder in subfolders.clone() {
                 let platform_path = format!("{}/{}", repo_request, folder);
-                if Path::new(&format!("{}/current", platform_path)).exists() {
-                    watcher
-                        .watch(
-                            Path::new(&format!("{}/current", platform_path)),
-                            RecursiveMode::NonRecursive,
-                        )
-                        .unwrap();
+
+                let current_dir = format!("{}/current", platform_path);
+                if Path::new(&current_dir).exists() {
+                    if let Err(err) =
+                        watcher.watch(Path::new(&current_dir), RecursiveMode::NonRecursive)
+                    {
+                        tracing::warn!("Could not watch {}: {}", current_dir, err);
+                    }
                 }
-                watcher
-                    .watch(
-                        Path::new(&format!("{}/packages", platform_path)),
-                        RecursiveMode::NonRecursive,
-                    )
-                    .unwrap();
-                watcher
-                    .watch(
-                        Path::new(&format!("{}/versions", platform_path)),
-                        RecursiveMode::NonRecursive,
-                    )
-                    .unwrap();
-                if Path::new(&format!("{}/{}", platform_path, options.build_path)).exists() {
-                    watcher
-                        .watch(
-                            Path::new(&format!("{}/.build", platform_path)),
-                            RecursiveMode::NonRecursive,
-                        )
-                        .unwrap();
+
+                let packages_dir = format!("{}/packages", platform_path);
+                if Path::new(&packages_dir).exists() {
+                    if let Err(err) =
+                        watcher.watch(Path::new(&packages_dir), RecursiveMode::NonRecursive)
+                    {
+                        tracing::warn!("Could not watch {}: {}", packages_dir, err);
+                    }
+                }
+
+                let versions_dir = format!("{}/versions", platform_path);
+                if Path::new(&versions_dir).exists() {
+                    if let Err(err) =
+                        watcher.watch(Path::new(&versions_dir), RecursiveMode::NonRecursive)
+                    {
+                        tracing::warn!("Could not watch {}: {}", versions_dir, err);
+                    }
+                }
+
+                let build_dir = format!("{}/{}", platform_path, options.build_path);
+                if Path::new(&build_dir).exists() {
+                    if let Err(err) =
+                        watcher.watch(Path::new(&build_dir), RecursiveMode::NonRecursive)
+                    {
+                        tracing::warn!("Could not watch {}: {}", build_dir, err);
+                    }
+                } else {
+                    // Surveille le dossier parent pour détecter la création de build_dir
+                    if let Err(err) =
+                        watcher.watch(Path::new(&platform_path), RecursiveMode::NonRecursive)
+                    {
+                        tracing::warn!("Could not watch {}: {}", platform_path, err);
+                    }
+                }
+
+                let binaries_dir = format!("{}/{}/{}", repo_request, options.upload_path, folder);
+                if Path::new(&binaries_dir).exists() {
+                    if let Err(err) =
+                        watcher.watch(Path::new(&binaries_dir), RecursiveMode::NonRecursive)
+                    {
+                        tracing::warn!("Could not watch {}: {}", binaries_dir, err);
+                    }
+                } else {
+                    // Surveille le parent de binaries pour détecter sa création
+                    let binaries_parent = format!("{}/{}", repo_request, options.upload_path);
+                    if Path::new(&binaries_parent).exists() {
+                        if let Err(err) =
+                            watcher.watch(Path::new(&binaries_parent), RecursiveMode::NonRecursive)
+                        {
+                            tracing::warn!("Could not watch {}: {}", binaries_parent, err);
+                        }
+                    }
                 }
             }
 
             let mut repo_array = RepoStatusOutput { status: Vec::new() };
 
             tokio::task::spawn(async move {
-                let _watcher = watcher;
+                let mut watcher = watcher;
                 while let Some(Ok(_)) = local_rx.recv().await {
                     for folder in subfolders.clone() {
+                        let platform_path = format!("{}/{}", repo_watch, folder);
+                        let build_dir = format!("{}/{}", platform_path, options.build_path);
+                        if Path::new(&build_dir).exists() {
+                            let _ = watcher.unwatch(Path::new(&platform_path));
+                            if let Err(err) =
+                                watcher.watch(Path::new(&build_dir), RecursiveMode::NonRecursive)
+                            {
+                                tracing::warn!("Could not watch {}: {}", build_dir, err);
+                            }
+                        }
+
+                        let binaries_dir =
+                            format!("{}/{}/{}", repo_watch, options.upload_path, folder);
+                        let binaries_parent = format!("{}/{}", repo_watch, options.upload_path);
+                        if Path::new(&binaries_dir).exists() {
+                            let _ = watcher.unwatch(Path::new(&binaries_parent));
+                            if let Err(err) =
+                                watcher.watch(Path::new(&binaries_dir), RecursiveMode::NonRecursive)
+                            {
+                                tracing::warn!("Could not watch {}: {}", binaries_dir, err);
+                            }
+                        }
                         match repo_state(repo_watch.clone(), folder, options.clone()) {
                             Ok(new_state) => {
                                 repo_array.status.push(new_state);
