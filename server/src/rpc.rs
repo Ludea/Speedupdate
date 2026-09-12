@@ -782,69 +782,98 @@ where
 
             let (parts, body) = req.into_parts();
 
-            let content = body
-                .collect()
-                .await
-                .map_err(|err| {
-                    tracing::error!("Unable to get body content: {}", err.to_string());
-                })
-                .unwrap()
-                .to_bytes();
+            let content = match body.collect().await {
+                Ok(collected) => collected.to_bytes(),
+                Err(err) => {
+                    tracing::error!("Unable to get body content: {}", err);
+                    return Ok(Status::internal("Unable to read body").into_http());
+                }
+            };
 
-            if !content.is_empty() {
-                let len =
-                    u32::from_be_bytes([content[1], content[2], content[3], content[4]]) as usize;
-                let decoded_content = RepositoryPath::decode(&content[5..5 + len]);
-                let content_without_path = decoded_content
-                    .unwrap()
+            if content.is_empty() || content.len() < 5 {
+                return match inner
+                    .call(http::Request::from_parts(parts, AxumBody::from(content)))
+                    .await
+                {
+                    Ok(response) => Ok(response),
+                    Err(_) => {
+                        tracing::error!("Unable to create http response");
+                        Ok(Status::internal("Internal error").into_http())
+                    }
+                };
+            }
+
+            let len = u32::from_be_bytes([content[1], content[2], content[3], content[4]]) as usize;
+
+            if 5 + len > content.len() {
+                return match inner
+                    .call(http::Request::from_parts(parts, AxumBody::from(content)))
+                    .await
+                {
+                    Ok(response) => Ok(response),
+                    Err(_) => {
+                        tracing::error!("Unable to create http response");
+                        Ok(Status::internal("Internal error").into_http())
+                    }
+                };
+            }
+
+            let content_without_path = match RepositoryPath::decode(&content[5..5 + len]) {
+                Ok(decoded) => decoded
                     .path
                     .replace("/win64", "")
                     .replace("/macos_arm64", "")
                     .replace("/macos_x86_64", "")
                     .replace("/linux", "")
                     .replace("/game", "")
-                    .replace("/launcher", "");
-
-                match parts.headers.get("authorization") {
-                    Some(t) => {
-                        let validation = &mut Validation::new(Algorithm::EdDSA);
-                        validation.validate_exp = false;
-                        let t_string = t.to_str().unwrap().replace("Bearer ", "");
-                        match decode::<Claims>(&t_string, &jwt_pubkey, validation) {
-                            Ok(token_data) => {
-                                // Compare body with scope
-                                if called_fn_without_service == "Init"
-                                    || token_data.claims.scope.contains(&content_without_path)
-                                {
-                                    let body = AxumBody::from(content);
-                                    let response = inner
-                                        .call(http::Request::from_parts(parts, body))
-                                        .await
-                                        .map_err(|_err| {
-                                            tracing::error!("Unable to create http response");
-                                        })
-                                        .unwrap();
-                                    Ok(response)
-                                } else {
-                                    Ok(Status::unauthenticated("Not allowed").into_http())
-                                }
-                            }
-                            Err(err) => Ok(Status::unauthenticated(err.to_string()).into_http()),
+                    .replace("/launcher", ""),
+                Err(_) => {
+                    return match inner
+                        .call(http::Request::from_parts(parts, AxumBody::from(content)))
+                        .await
+                    {
+                        Ok(response) => Ok(response),
+                        Err(_) => {
+                            tracing::error!("Unable to create http response");
+                            Ok(Status::internal("Internal error").into_http())
                         }
-                    }
-                    None => Ok(Status::unauthenticated("No token found").into_http()),
+                    };
                 }
-            } else {
-                // http response
-                let body = AxumBody::from(content);
-                let response = inner
-                    .call(http::Request::from_parts(parts, body))
-                    .await
-                    .map_err(|_err| {
-                        tracing::error!("Unable to create http response");
-                    })
-                    .unwrap();
-                Ok(response)
+            };
+
+            let token = match parts.headers.get("authorization") {
+                Some(t) => t,
+                None => return Ok(Status::unauthenticated("No token found").into_http()),
+            };
+
+            let t_string = match token.to_str() {
+                Ok(s) => s.replace("Bearer ", ""),
+                Err(err) => return Ok(Status::unauthenticated(err.to_string()).into_http()),
+            };
+
+            let validation = &mut Validation::new(Algorithm::EdDSA);
+            validation.validate_exp = false;
+
+            match decode::<Claims>(&t_string, &jwt_pubkey, validation) {
+                Ok(token_data) => {
+                    if called_fn_without_service == "Init"
+                        || token_data.claims.scope.contains(&content_without_path)
+                    {
+                        match inner
+                            .call(http::Request::from_parts(parts, AxumBody::from(content)))
+                            .await
+                        {
+                            Ok(response) => Ok(response),
+                            Err(_) => {
+                                tracing::error!("Unable to create http response");
+                                Ok(Status::internal("Internal error").into_http())
+                            }
+                        }
+                    } else {
+                        Ok(Status::unauthenticated("Not allowed").into_http())
+                    }
+                }
+                Err(err) => Ok(Status::unauthenticated(err.to_string()).into_http()),
             }
         })
     }
