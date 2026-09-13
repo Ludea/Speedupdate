@@ -728,9 +728,9 @@ pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
     let mut routes = RoutesBuilder::default();
     routes.add_service(service);
 
-    let layer = tower::ServiceBuilder::new();
-    //    .layer(AuthMiddlewareLayer { pubkey: decoded_pkey.clone() })
-    //     .into_inner();
+    let layer = tower::ServiceBuilder::new()
+        .layer(AuthMiddlewareLayer { pubkey: decoded_pkey.clone() })
+        .into_inner();
 
     routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(layer)
 }
