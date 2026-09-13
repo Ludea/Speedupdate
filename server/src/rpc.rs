@@ -97,9 +97,10 @@ impl Repo for RemoteRepository {
         let repo_request = inner.path.clone();
         let repo_watch = inner.path.clone();
         let platforms = inner.platforms;
-        let options = inner
-            .options
-            .unwrap_or(Options { build_path: ".".to_string(), upload_path: ".".to_string() });
+        let options = inner.options.unwrap_or(Options {
+            build_path: ".build".to_string(),
+            upload_path: "binaries".to_string(),
+        });
 
         let mut subfolders: Vec<&str> = Vec::new();
 
@@ -727,9 +728,9 @@ pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
     let mut routes = RoutesBuilder::default();
     routes.add_service(service);
 
-    let layer = tower::ServiceBuilder::new()
-        .layer(AuthMiddlewareLayer { pubkey: decoded_pkey.clone() })
-        .into_inner();
+    let layer = tower::ServiceBuilder::new();
+    //    .layer(AuthMiddlewareLayer { pubkey: decoded_pkey.clone() })
+    //     .into_inner();
 
     routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(layer)
 }
