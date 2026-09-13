@@ -120,7 +120,7 @@ impl Repo for RemoteRepository {
                 state.status.push(
                     match repo_state(repo_request.clone(), folder, options.clone()) {
                         Ok(local_state) => local_state,
-                        Err(err) => return Err(Status::internal(err)),
+                        Err(err) => return Err(Status::internal(err.to_string())),
                     },
                 );
             }
@@ -241,7 +241,11 @@ impl Repo for RemoteRepository {
                             Ok(new_state) => {
                                 repo_array.status.push(new_state);
                             }
-                            Err(err) => { Err(Status::internal(err)) }.unwrap(),
+                            Err(err) => {
+                                tracing::error!("{}", err);
+                                let _ = tx.send(Err(Status::internal(err.to_string()))).await;
+                                break;
+                            }
                         };
                     }
                     send_message(tx.clone(), repo_array.clone());
@@ -603,22 +607,20 @@ impl Repo for RemoteRepository {
     }
 }
 
-fn repo_state(repo_path: String, platform: &str, options: Options) -> Result<RepoStatus, String> {
+fn repo_state(
+    repo_path: String,
+    platform: &str,
+    options: Options,
+) -> Result<RepoStatus, std::io::Error> {
     let platform_path = format!("{}/{}", repo_path, platform);
     let repo = Repository::new(PathBuf::from(platform_path.clone()));
 
     let mut list_versions: Vec<Versions> = Vec::new();
-    match repo.versions() {
-        Ok(value) => {
-            for val in value.iter() {
-                let new_version = Versions {
-                    revision: val.revision().to_string(),
-                    description: val.description().to_string(),
-                };
-                list_versions.push(new_version);
-            }
-        }
-        Err(error) => return Err("Versions : ".to_owned() + &error.to_string()),
+    for val in repo.versions()?.iter() {
+        list_versions.push(Versions {
+            revision: val.revision().to_string(),
+            description: val.description().to_string(),
+        });
     }
 
     let current_version = match repo.current_version() {
@@ -627,35 +629,27 @@ fn repo_state(repo_path: String, platform: &str, options: Options) -> Result<Rep
     };
 
     let mut list_packages = Vec::new();
-    let size = match repo.packages() {
-        Ok(value) => {
-            for val in value.iter() {
-                list_packages.push(val.package_data_name().to_string());
-            }
-            value.iter().map(|p| p.size()).sum::<u64>()
+    let size = {
+        let packages = repo.packages()?;
+        for val in packages.iter() {
+            list_packages.push(val.package_data_name().to_string());
         }
-        Err(error) => return Err("Packages: ".to_owned() + &error.to_string()),
+        packages.iter().map(|p| p.size()).sum::<u64>()
     };
 
-    let available_packages = match repo.available_packages(options.build_path) {
-        Ok(pack) => pack,
-        Err(err) => return Err("Available packages: ".to_owned() + &err.to_string()),
-    };
+    let available_packages = repo.available_packages(options.build_path)?;
 
     let mut available_binaries = Vec::new();
     let binaries_folder = format!("{}/{}/{}", repo_path, options.upload_path, platform);
-    match fs::read_dir(Path::new(&binaries_folder)) {
-        Ok(dir) => {
-            for entry in dir {
-                let entry = entry.unwrap();
-                let path = entry.path();
-                if path.is_dir() {
-                    available_binaries
-                        .push(path.file_name().unwrap().to_str().unwrap().to_string());
-                }
-            }
+    for entry in fs::read_dir(Path::new(&binaries_folder))? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_file() {
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            available_binaries.push(name.to_string());
         }
-        Err(err) => return Err("Available binaries: ".to_owned() + &err.to_string()),
     }
 
     Ok(RepoStatus {
