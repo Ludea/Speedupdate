@@ -497,17 +497,21 @@ impl Repo for RemoteRepository {
             builder.set_num_threads(num_threads.try_into().unwrap());
         }
 
-        let options = BuildOptions {
-            compressors: inner
-                .compressors
-                .iter()
-                .map(|c| CoderOptions::from_static_str(c).unwrap())
-                .collect(),
-            patchers: inner
-                .patcher
-                .iter()
-                .map(|s| CoderOptions::from_static_str(s).unwrap())
-                .collect(),
+        let options = if inner.compressors.is_empty() && inner.patcher.is_empty() {
+            BuildOptions::default()
+        } else {
+            BuildOptions {
+                compressors: inner
+                    .compressors
+                    .iter()
+                    .map(|c| CoderOptions::from_static_str(c).unwrap())
+                    .collect(),
+                patchers: inner
+                    .patcher
+                    .iter()
+                    .map(|s| CoderOptions::from_static_str(s).unwrap())
+                    .collect(),
+            }
         };
         builder.set_options(options);
 
@@ -564,23 +568,31 @@ impl Repo for RemoteRepository {
             builder.set_previous(prev_version, prev_directory);
         }
 
-        let mut build_stream = builder.build();
-
-        match build_stream.next().await {
-            Some(Ok(_)) => {}
-            Some(Err(err)) => return Err(Status::internal(err.to_string())),
-            None => unreachable!(),
-        }
-
-        build_stream
-            .try_for_each(|_| future::ready(Ok(())))
-            .await
-            .map_err(|err| Status::internal(err.to_string()))?;
-
         let (tx, rx) = mpsc::channel(1);
-        let reply = BuildOutput { downloaded_bytes_start: 0, downloaded_bytes_end: 0 };
+
         tokio::spawn(async move {
-            let _ = tx.send(Ok(reply)).await;
+            let mut build_stream = builder.build();
+
+            let result = async {
+                match build_stream.next().await {
+                    Some(Ok(_)) => {}
+                    Some(Err(err)) => return Err(Status::internal(err.to_string())),
+                    None => unreachable!(),
+                }
+
+                build_stream
+                    .try_for_each(|_| future::ready(Ok(())))
+                    .await
+                    .map_err(|err| Status::internal(err.to_string()))
+            }
+            .await;
+
+            let message = match result {
+                Ok(_) => Ok(BuildOutput { downloaded_bytes_start: 0, downloaded_bytes_end: 0 }),
+                Err(status) => Err(status),
+            };
+
+            let _ = tx.send(message).await;
         });
 
         let output_stream = ReceiverStream::new(rx);
