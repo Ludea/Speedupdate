@@ -12,7 +12,7 @@ use jsonwebtoken::{decode, Algorithm, DecodingKey, Validation};
 use libspeedupdate::{
     metadata::{v1, CleanName},
     repository::{BuildOptions, CoderOptions, PackageBuilder},
-    //    workspace::{UpdateOptions, Workspace},
+    workspace::{UpdateOptions, Workspace},
     Repository,
 };
 use notify::{Config, RecursiveMode, Watcher};
@@ -181,7 +181,6 @@ impl Repo for RemoteRepository {
                         tracing::warn!("Could not watch {}: {}", build_dir, err);
                     }
                 } else {
-                    // Surveille le dossier parent pour détecter la création de build_dir
                     if let Err(err) =
                         watcher.watch(Path::new(&platform_path), RecursiveMode::NonRecursive)
                     {
@@ -197,7 +196,6 @@ impl Repo for RemoteRepository {
                         tracing::warn!("Could not watch {}: {}", binaries_dir, err);
                     }
                 } else {
-                    // Surveille le parent de binaries pour détecter sa création
                     let binaries_parent = format!("{}/{}", repo_request, options.upload_path);
                     if Path::new(&binaries_parent).exists() {
                         if let Err(err) =
@@ -482,99 +480,106 @@ impl Repo for RemoteRepository {
         request: Request<BuildInput>,
     ) -> Result<Response<Self::BuildStream>, Status> {
         let inner = request.into_inner();
-        //let repository_path = inner.path;
-        //let repository = Repository::new(PathBuf::from(repository_path));
+        let repository_path = inner.path;
+        let repository = Repository::new(PathBuf::from(repository_path));
 
-        let source_version = match CleanName::new(inner.version) {
-            Ok(ver) => ver,
-            Err(err) => {
-                return Err(Status::internal(err.to_string()));
-            }
-        };
+        let source_version =
+            CleanName::new(inner.version).map_err(|err| Status::internal(err.to_string()))?;
+
         let source_directory = PathBuf::from(inner.source_directory);
-        let build_directory = PathBuf::from(inner.build_directory.unwrap_or(".build".to_string()));
-        let mut builder = PackageBuilder::new(build_directory, source_version, source_directory);
+        let build_directory =
+            PathBuf::from(inner.build_directory.unwrap_or_else(|| ".build".to_string()));
+
+        let mut builder =
+            PackageBuilder::new(build_directory.clone(), source_version, source_directory);
+
         if let Some(num_threads) = inner.num_threads {
             builder.set_num_threads(num_threads.try_into().unwrap());
         }
-        let mut options = BuildOptions::default();
-        if let Some(compressors) = Some(inner.compressors) {
-            options.compressors = compressors
+
+        let options = BuildOptions {
+            compressors: inner
+                .compressors
                 .iter()
-                .map(|compressor| CoderOptions::from_static_str(compressor).unwrap())
-                .collect();
-        }
-        let (tx, rx) = mpsc::channel(128);
+                .map(|c| CoderOptions::from_static_str(c).unwrap())
+                .collect(),
+            patchers: inner
+                .patcher
+                .iter()
+                .map(|s| CoderOptions::from_static_str(s).unwrap())
+                .collect(),
+        };
+        builder.set_options(options);
+        if let Some(from_version_str) = inner.from {
+            let prev_directory = build_directory.join(".from");
 
-        if let Some(patchers) = Some(inner.patcher) {
-            options.patchers =
-                patchers.iter().map(|s| CoderOptions::from_static_str(s).unwrap()).collect();
-        }
-        /*        if let Some(from) = Some(inner.from) {
-            let mut prev_version = CleanName::new("".to_string()).unwrap();
-            let prev_directory = builder.build_directory.join(".from");
-            match fs::create_dir_all(&prev_directory) {
-                Ok(_) => {
-                    prev_version = match CleanName::new(from.unwrap()) {
-                        Ok(ver) => ver,
-                        Err(err) => {
-                            return Err(Status::internal(err.to_string()));
-                        }
-                    };
-                }
-                Err(err) => {
-                    return Err(Status::internal(err.to_string()));
-                }
-            };
+            fs::create_dir_all(&prev_directory).map_err(|err| Status::internal(err.to_string()))?;
+
+            let prev_version = CleanName::new(from_version_str)
+                .map_err(|err| Status::internal(err.to_string()))?;
+
             let link = repository.link();
-            let mut workspace = Workspace::open(&prev_directory).unwrap();
-            let goal_version = Some(prev_version.clone());
-            let mut update_stream = workspace.update(&link, goal_version, UpdateOptions::default());
+            let prev_dir_clone = prev_directory.clone();
+            let prev_version_clone = prev_version.clone();
 
-            let state = match update_stream.next().await {
-                Some(Ok(state)) => state,
-                Some(Err(err)) => {
-                    return Err(Status::internal(err.to_string()));
-                }
-                None => unreachable!(),
-            };
-            let state = state.borrow();
+            let update_result = tokio::task::spawn_blocking(move || {
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|err| Status::internal(err.to_string()))?
+                    .block_on(async move {
+                        let mut workspace = Workspace::open(&prev_dir_clone)
+                            .map_err(|err| Status::internal(err.to_string()))?;
 
-            let progress = state.histogram.progress();
-            let res = update_stream.try_for_each(|_state| future::ready(Ok(()))).await;
-            if let Err(err) = res {
-                return Err(Status::internal(err.to_string()));
-            }
-            match workspace.remove_metadata() {
-                Ok(_) => (),
-                Err(err) => {
-                    return Err(Status::internal(err.to_string()));
-                }
-            }
+                        let mut update_stream = workspace.update(
+                            &link,
+                            Some(prev_version_clone),
+                            UpdateOptions::default(),
+                        );
+
+                        match update_stream.next().await {
+                            Some(Ok(_)) => {}
+                            Some(Err(err)) => return Err(Status::internal(err.to_string())),
+                            None => unreachable!(),
+                        }
+
+                        update_stream
+                            .try_for_each(|_| future::ready(Ok(())))
+                            .await
+                            .map_err(|err| Status::internal(err.to_string()))?;
+
+                        workspace
+                            .remove_metadata()
+                            .map_err(|err| Status::internal(err.to_string()))?;
+
+                        Ok::<_, Status>(())
+                    })
+            })
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+            update_result?;
+
             builder.set_previous(prev_version, prev_directory);
-        }*/
+        }
 
         let mut build_stream = builder.build();
-        match build_stream.next().await {
-            Some(Ok(state)) => state,
-            Some(Err(err)) => {
-                return Err(Status::internal(err.to_string()));
-            }
-            None => unreachable!(),
-        };
 
-        let res = build_stream.try_for_each(|_state| future::ready(Ok(()))).await;
-        if let Err(err) = res {
-            return Err(Status::internal(err.to_string()));
+        match build_stream.next().await {
+            Some(Ok(_)) => {}
+            Some(Err(err)) => return Err(Status::internal(err.to_string())),
+            None => unreachable!(),
         }
 
+        build_stream
+            .try_for_each(|_| future::ready(Ok(())))
+            .await
+            .map_err(|err| Status::internal(err.to_string()))?;
+
+        let (tx, rx) = mpsc::channel(1);
         let reply = BuildOutput { downloaded_bytes_start: 0, downloaded_bytes_end: 0 };
         tokio::spawn(async move {
-            if let Err(err) = tx.send(Result::<_, Status>::Ok(reply)).await {
-                Err(Status::internal(err.to_string()))
-            } else {
-                Ok(())
-            }
+            let _ = tx.send(Ok(reply)).await;
         });
 
         let output_stream = ReceiverStream::new(rx);
@@ -641,6 +646,7 @@ fn repo_state(
 
     let mut available_binaries = Vec::new();
     let binaries_folder = format!("{}/{}/{}", repo_path, options.upload_path, platform);
+
     for entry in fs::read_dir(Path::new(&binaries_folder))? {
         let entry = entry?;
         let path = entry.path();
