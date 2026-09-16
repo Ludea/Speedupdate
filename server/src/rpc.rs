@@ -509,8 +509,8 @@ impl Repo for RemoteRepository {
                 .map(|s| CoderOptions::from_static_str(s).unwrap())
                 .collect(),
         };
-      builder.set_options(options);
-      
+        builder.set_options(options);
+
         if let Some(from_version_str) = inner.from {
             let prev_directory = build_directory.join(".from");
 
