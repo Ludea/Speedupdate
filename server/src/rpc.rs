@@ -180,29 +180,20 @@ impl Repo for RemoteRepository {
                     {
                         tracing::warn!("Could not watch {}: {}", build_dir, err);
                     }
-                } else {
-                    if let Err(err) =
-                        watcher.watch(Path::new(&platform_path), RecursiveMode::NonRecursive)
-                    {
-                        tracing::warn!("Could not watch {}: {}", platform_path, err);
-                    }
+                } else if let Err(err) =
+                    watcher.watch(Path::new(&platform_path), RecursiveMode::NonRecursive)
+                {
+                    tracing::warn!("Could not watch {}: {}", platform_path, err);
                 }
 
-                let binaries_dir = format!("{}/{}/{}", repo_request, options.upload_path, folder);
-                if Path::new(&binaries_dir).exists() {
+                // Binaries are now versioned: {repo}/{upload_path}/{version}/{platform}/
+                // Watch the upload_path root recursively so new version directories are detected.
+                let binaries_root = format!("{}/{}", repo_request, options.upload_path);
+                if Path::new(&binaries_root).exists() {
                     if let Err(err) =
-                        watcher.watch(Path::new(&binaries_dir), RecursiveMode::NonRecursive)
+                        watcher.watch(Path::new(&binaries_root), RecursiveMode::Recursive)
                     {
-                        tracing::warn!("Could not watch {}: {}", binaries_dir, err);
-                    }
-                } else {
-                    let binaries_parent = format!("{}/{}", repo_request, options.upload_path);
-                    if Path::new(&binaries_parent).exists() {
-                        if let Err(err) =
-                            watcher.watch(Path::new(&binaries_parent), RecursiveMode::NonRecursive)
-                        {
-                            tracing::warn!("Could not watch {}: {}", binaries_parent, err);
-                        }
+                        tracing::warn!("Could not watch {}: {}", binaries_root, err);
                     }
                 }
             }
@@ -224,17 +215,9 @@ impl Repo for RemoteRepository {
                             }
                         }
 
-                        let binaries_dir =
-                            format!("{}/{}/{}", repo_watch, options.upload_path, folder);
-                        let binaries_parent = format!("{}/{}", repo_watch, options.upload_path);
-                        if Path::new(&binaries_dir).exists() {
-                            let _ = watcher.unwatch(Path::new(&binaries_parent));
-                            if let Err(err) =
-                                watcher.watch(Path::new(&binaries_dir), RecursiveMode::NonRecursive)
-                            {
-                                tracing::warn!("Could not watch {}: {}", binaries_dir, err);
-                            }
-                        }
+                        // No per-event watcher adjustment needed for binaries:
+                        // the recursive watch on binaries_root already covers new version dirs.
+
                         match repo_state(repo_watch.clone(), folder, options.clone()) {
                             Ok(new_state) => {
                                 repo_array.status.push(new_state);
@@ -625,6 +608,10 @@ impl Repo for RemoteRepository {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Repository state
+// ---------------------------------------------------------------------------
+
 fn repo_state(
     repo_path: String,
     platform: &str,
@@ -657,17 +644,36 @@ fn repo_state(
 
     let available_packages = repo.available_packages(options.build_path)?;
 
+    // Binaries are stored as {repo}/{upload_path}/{version}/{platform}/
+    // Walk all version subdirectories and collect files for the current platform.
     let mut available_binaries = Vec::new();
-    let binaries_folder = format!("{}/{}/{}", repo_path, options.upload_path, platform);
+    let binaries_root = Path::new(&repo_path).join(&options.upload_path);
 
-    for entry in fs::read_dir(Path::new(&binaries_folder))? {
-        let entry = entry?;
-        let path = entry.path();
-        if path.is_file() {
-            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+    if binaries_root.exists() {
+        for version_entry in fs::read_dir(&binaries_root)? {
+            let version_entry = version_entry?;
+            let version_path = version_entry.path();
+
+            if !version_path.is_dir() {
                 continue;
-            };
-            available_binaries.push(name.to_string());
+            }
+
+            let platform_binaries = version_path.join(platform);
+            if !platform_binaries.exists() {
+                continue;
+            }
+
+            for file_entry in fs::read_dir(&platform_binaries)? {
+                let file_entry = file_entry?;
+                let path = file_entry.path();
+
+                if path.is_file() {
+                    let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                        continue;
+                    };
+                    available_binaries.push(name.to_string());
+                }
+            }
         }
     }
 
@@ -680,6 +686,10 @@ fn repo_state(
         available_binaries,
     })
 }
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 fn send_message(
     tx: tokio::sync::mpsc::Sender<Result<RepoStatusOutput, Status>>,
@@ -732,6 +742,10 @@ where
     select_task.await.unwrap()
 }
 
+// ---------------------------------------------------------------------------
+// gRPC server
+// ---------------------------------------------------------------------------
+
 pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
     let repo = RemoteRepository {};
     let service = RepoServer::new(repo)
@@ -747,6 +761,10 @@ pub fn rpc_api(decoded_pkey: &DecodingKey) -> AxumRouter {
 
     routes.routes().into_axum_router().layer(GrpcWebLayer::new()).layer(layer)
 }
+
+// ---------------------------------------------------------------------------
+// Auth middleware
+// ---------------------------------------------------------------------------
 
 #[derive(Debug, Clone)]
 pub struct AuthMiddlewareLayer {

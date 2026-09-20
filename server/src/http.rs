@@ -33,7 +33,6 @@ use tower_http::{
     services::ServeDir,
     trace::TraceLayer,
 };
-use zip::result::ZipError;
 
 use crate::errors::SpeedupdateServerError;
 
@@ -195,7 +194,8 @@ async fn upload_versioned(
         let upload_dir = path_segments
             .iter()
             .fold(base_dir.to_path_buf(), |acc, seg| acc.join(seg))
-            .join(format!("{} {}", version, platform));
+            .join(&version)
+            .join(platform);
 
         fs::create_dir_all(&upload_dir)?;
 
@@ -252,10 +252,11 @@ async fn write_field(
     Ok(())
 }
 
+/// After writing a file to disk: if it is a zip archive, extract then delete it.
 async fn post_process(file_path: &Path) -> Result<(), SpeedupdateServerError> {
     sleep(Duration::from_secs(2)).await;
 
-    if is_zip_file(file_path)? {
+    if is_zip_file(file_path)? == true {
         extract_zip(file_path)?;
         fs::remove_file(file_path)?;
     }
@@ -285,7 +286,7 @@ fn is_zip_file(file_path: &Path) -> io::Result<bool> {
     Ok(signature == [0x50, 0x4B, 0x03, 0x04])
 }
 
-fn extract_zip(zip_path: &Path) -> Result<(), ZipError> {
+fn extract_zip(zip_path: &Path) -> Result<(), SpeedupdateServerError> {
     let file = fs::File::open(zip_path).unwrap();
     let mut archive = zip::ZipArchive::new(file)?;
     // Extract alongside the zip (strip the extension to get the output dir)
