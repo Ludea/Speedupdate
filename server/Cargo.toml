@@ -1,6 +1,6 @@
 [package]
 name = "speedupdateserver"
-version = "0.10.20"
+version = "0.10.21"
 edition = "2021"
 authors = ["Ludea"]
 license = "MIT"
