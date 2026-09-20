@@ -9,6 +9,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 //mod ftp;
+mod errors;
 mod http;
 mod rpc;
 

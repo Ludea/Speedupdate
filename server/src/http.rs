@@ -3,10 +3,11 @@ use std::{
     fs,
     future::ready,
     io::{self, Read},
+    path::{Path, PathBuf},
 };
 
 use axum::{
-    extract::{DefaultBodyLimit, MatchedPath, Multipart, Path, Request},
+    extract::{DefaultBodyLimit, MatchedPath, Multipart, Path as AxumPath, Request},
     handler::HandlerWithoutStateExt,
     http::{header::CONTENT_LENGTH, HeaderMap, StatusCode},
     middleware::{self, Next},
@@ -34,8 +35,17 @@ use tower_http::{
 };
 use zip::result::ZipError;
 
-async fn health_check() -> &'static str {
-    "OK"
+use crate::errors::SpeedupdateServerError;
+
+fn extract_version(file_name: &str) -> Option<String> {
+    // Split on '_' and find the first segment that looks like X.Y.Z
+    file_name
+        .split('_')
+        .find(|segment| {
+            let parts: Vec<&str> = segment.split('.').collect();
+            parts.len() == 3 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit()))
+        })
+        .map(|s| s.to_string())
 }
 
 fn setup_metrics_recorder() -> PrometheusHandle {
@@ -52,18 +62,33 @@ fn setup_metrics_recorder() -> PrometheusHandle {
         .unwrap()
 }
 
+async fn track_metrics(req: Request, next: Next) -> impl IntoResponse {
+    let path = if let Some(matched_path) = req.extensions().get::<MatchedPath>() {
+        matched_path.as_str().to_owned()
+    } else {
+        req.uri().path().to_owned()
+    };
+    let method = req.method().clone();
+    let response = next.run(req).await;
+    let status = response.status().as_u16().to_string();
+    let labels = [("method", method.to_string()), ("path", path), ("status", status)];
+    metrics::counter!("http_requests_total", &labels).increment(1);
+    response
+}
+
+async fn health_check() -> &'static str {
+    "OK"
+}
+
 pub fn http_api() -> Router {
     let (progress_tx, _) = broadcast::channel(100);
-
     let recorder_handle = setup_metrics_recorder();
 
     async fn handle_404() -> (StatusCode, &'static str) {
         (StatusCode::NOT_FOUND, "Not found")
     }
 
-    let service = handle_404.into_service();
-
-    let serve_dir = ServeDir::new(".").not_found_service(service);
+    let serve_dir = ServeDir::new(".").not_found_service(handle_404.into_service());
 
     Router::new()
         .route("/health", get(health_check))
@@ -72,8 +97,8 @@ pub fn http_api() -> Router {
             "/{repo}/{type}/binaries/{platform}",
             post({
                 let progress_tx = progress_tx.clone();
-                move |header, path, multipart| {
-                    save_binaries(progress_tx.clone(), header, path, multipart)
+                move |headers, path, multipart| {
+                    save_binaries(progress_tx.clone(), headers, path, multipart)
                 }
             }),
         )
@@ -82,8 +107,8 @@ pub fn http_api() -> Router {
             "/{repo}/launcher",
             post({
                 let progress_tx = progress_tx.clone();
-                move |header, path, multipart| {
-                    save_image(progress_tx.clone(), header, path, multipart)
+                move |headers, path, multipart| {
+                    save_image(progress_tx.clone(), headers, path, multipart)
                 }
             }),
         )
@@ -100,121 +125,141 @@ pub fn http_api() -> Router {
         .layer(TraceLayer::new_for_http())
 }
 
-async fn track_metrics(req: Request, next: Next) -> impl IntoResponse {
-    let path = if let Some(matched_path) = req.extensions().get::<MatchedPath>() {
-        matched_path.as_str().to_owned()
-    } else {
-        req.uri().path().to_owned()
-    };
-    let method = req.method().clone();
-    let response = next.run(req).await;
-    let status = response.status().as_u16().to_string();
-    let labels = [("method", method.to_string()), ("path", path), ("status", status)];
-    metrics::counter!("http_requests_total", &labels).increment(1);
-    response
-}
-
 async fn save_binaries(
     progress_tx: Sender<(usize, usize)>,
-    header: HeaderMap,
-    Path((repo, launcher_game, platform)): Path<(String, String, String)>,
+    headers: HeaderMap,
+    AxumPath((repo, launcher_game, platform)): AxumPath<(String, String, String)>,
     multipart: Multipart,
-) -> Result<(), (StatusCode, String)> {
-    let repo_path = std::path::Path::new(&repo);
-    let folder_path = format!("{}/{}/{}/{}", repo.clone(), launcher_game, "binaries", platform);
-    let upload_path = std::path::Path::new(&folder_path);
+) -> Result<(), SpeedupdateServerError> {
+    let repo_path = PathBuf::from(&repo);
 
-    upload(progress_tx, multipart, header, repo_path, upload_path).await?;
+    if !repo_path.exists() || !repo_path.is_dir() {
+        return Err(SpeedupdateServerError::RepositoryNotFound);
+    }
 
-    Ok(())
+    let total_size = parse_content_length(&headers)?;
+
+    upload_versioned(
+        progress_tx,
+        multipart,
+        total_size,
+        &repo_path,
+        &[&launcher_game, "binaries"],
+        &platform,
+    )
+    .await
 }
 
 async fn save_image(
     progress_tx: Sender<(usize, usize)>,
-    header: HeaderMap,
-    Path(repo): Path<String>,
+    headers: HeaderMap,
+    AxumPath(repo): AxumPath<String>,
     multipart: Multipart,
-) -> Result<(), (StatusCode, String)> {
-    let repo_path = std::path::Path::new(&repo);
-    let upload_path = std::path::Path::new(&repo);
+) -> Result<(), SpeedupdateServerError> {
+    let repo_path = PathBuf::from(&repo);
 
-    upload(progress_tx, multipart, header, repo_path, upload_path).await?;
+    if !repo_path.exists() || !repo_path.is_dir() {
+        return Err(SpeedupdateServerError::RepositoryNotFound);
+    }
+
+    let total_size = parse_content_length(&headers)?;
+
+    upload_flat(progress_tx, multipart, total_size, &repo_path).await
+}
+
+fn parse_content_length(headers: &HeaderMap) -> Result<usize, SpeedupdateServerError> {
+    let raw = headers
+        .get(CONTENT_LENGTH)
+        .ok_or(SpeedupdateServerError::MissingContentLength)?
+        .to_str()
+        .map_err(|e| SpeedupdateServerError::InvalidContentLength(e.to_string()))?;
+
+    raw.parse::<usize>().map_err(|_| SpeedupdateServerError::InvalidContentLength(raw.to_string()))
+}
+
+async fn upload_versioned(
+    progress_tx: Sender<(usize, usize)>,
+    mut multipart: Multipart,
+    total_size: usize,
+    base_dir: &Path,
+    path_segments: &[&str],
+    platform: &str,
+) -> Result<(), SpeedupdateServerError> {
+    while let Some(mut field) = multipart.next_field().await? {
+        let file_name =
+            field.file_name().ok_or(SpeedupdateServerError::MissingFileName)?.to_string();
+
+        let version = extract_version(&file_name)
+            .ok_or_else(|| SpeedupdateServerError::MissingVersion(file_name.clone()))?;
+
+        let upload_dir = path_segments
+            .iter()
+            .fold(base_dir.to_path_buf(), |acc, seg| acc.join(seg))
+            .join(format!("{} {}", version, platform));
+
+        fs::create_dir_all(&upload_dir)?;
+
+        let file_path = upload_dir.join(&file_name);
+        write_field(&mut field, &file_path, &progress_tx, total_size).await?;
+
+        tracing::info!("File {} uploaded to {}", file_name, upload_dir.display());
+
+        post_process(&file_path).await?;
+    }
 
     Ok(())
 }
 
-async fn upload(
+async fn upload_flat(
     progress_tx: Sender<(usize, usize)>,
     mut multipart: Multipart,
-    header: HeaderMap,
-    repo: &std::path::Path,
-    upload_path: &std::path::Path,
-) -> Result<(), (StatusCode, String)> {
-    let content_length = header.get(CONTENT_LENGTH).unwrap().to_str().unwrap();
-    let total_size = content_length.parse::<usize>().unwrap();
-    let mut file_name = String::new();
+    total_size: usize,
+    upload_dir: &Path,
+) -> Result<(), SpeedupdateServerError> {
+    fs::create_dir_all(upload_dir)?;
 
-    if repo.exists() && repo.is_dir() {
-        if let Err(err) = fs::create_dir_all(upload_path.display().to_string()) {
-            return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
-        }
-        while let Some(mut field) = multipart
-            .next_field()
-            .await
-            .map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?
-        {
-            file_name = match field.file_name() {
-                Some(name) => name.to_string(),
-                None => {
-                    tracing::error!("Upload: missing file name");
-                    return Err((StatusCode::BAD_REQUEST, "Missing file name".to_string()));
-                }
-            };
+    while let Some(mut field) = multipart.next_field().await? {
+        let file_name =
+            field.file_name().ok_or(SpeedupdateServerError::MissingFileName)?.to_string();
 
-            let mut file =
-                File::create(format!("{}/{}", upload_path.display(), file_name)).await.unwrap();
-            let mut progression = 0;
-            while let Some(chunk) =
-                field.chunk().await.map_err(|err| (StatusCode::BAD_REQUEST, err.to_string()))?
-            {
-                progression += chunk.len();
-                let _ = progress_tx.send((progression, total_size));
-                file.write_all(&chunk).await.unwrap();
-            }
-            let _ = progress_tx.send((total_size, total_size));
-        }
+        let file_path = upload_dir.join(&file_name);
+        write_field(&mut field, &file_path, &progress_tx, total_size).await?;
 
-        tracing::info!(
-            "File {} succesfully uploaded to {} folder",
-            file_name,
-            upload_path.display().to_string()
-        );
+        tracing::info!("File {} uploaded to {}", file_name, upload_dir.display());
 
-        sleep(Duration::from_secs(2)).await;
-        match is_zip_file(std::path::Path::new(&format!("{}/{}", upload_path.display(), file_name)))
-        {
-            Ok(result) => {
-                if result {
-                    if let Err(err) =
-                        extract_zip(format!("{}/{}", upload_path.display(), file_name))
-                    {
-                        return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
-                    }
-                    if let Err(err) =
-                        fs::remove_file(format!("{}/{}", upload_path.display(), file_name))
-                    {
-                        return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
-                    }
-                }
-            }
-            Err(err) => {
-                tracing::error!("{}", err);
-                return Err((StatusCode::INTERNAL_SERVER_ERROR, err.to_string()));
-            }
-        };
-    } else {
-        return Err((StatusCode::BAD_REQUEST, "No repository found".to_string()));
+        post_process(&file_path).await?;
     }
+
+    Ok(())
+}
+
+async fn write_field(
+    field: &mut axum::extract::multipart::Field<'_>,
+    dest: &Path,
+    progress_tx: &Sender<(usize, usize)>,
+    total_size: usize,
+) -> Result<(), SpeedupdateServerError> {
+    let mut file = File::create(dest).await?;
+    let mut progression = 0usize;
+
+    while let Some(chunk) = field.chunk().await? {
+        progression += chunk.len();
+        let _ = progress_tx.send((progression, total_size));
+        file.write_all(&chunk).await?;
+    }
+    let _ = progress_tx.send((total_size, total_size));
+
+    Ok(())
+}
+
+async fn post_process(file_path: &Path) -> Result<(), SpeedupdateServerError> {
+    sleep(Duration::from_secs(2)).await;
+
+    if is_zip_file(file_path)? {
+        extract_zip(file_path)?;
+        fs::remove_file(file_path)?;
+    }
+
     Ok(())
 }
 
@@ -222,9 +267,9 @@ async fn sse_handler(
     progress_tx: Sender<(usize, usize)>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
     let rx = progress_tx.subscribe();
-    let stream = BroadcastStream::new(rx).filter_map(move |result| match result {
-        Ok(bytes) => {
-            let percent = bytes.0 * 100 / bytes.1;
+    let stream = BroadcastStream::new(rx).filter_map(|result| match result {
+        Ok((done, total)) => {
+            let percent = done * 100 / total;
             Some(Ok(Event::default().data(percent.to_string())))
         }
         Err(_) => None,
@@ -233,61 +278,60 @@ async fn sse_handler(
     Sse::new(stream)
 }
 
-fn is_zip_file(file_path: &std::path::Path) -> io::Result<bool> {
+fn is_zip_file(file_path: &Path) -> io::Result<bool> {
     let mut file = std::fs::File::open(file_path)?;
-    let mut signature = [0; 4];
+    let mut signature = [0u8; 4];
     file.read_exact(&mut signature)?;
     Ok(signature == [0x50, 0x4B, 0x03, 0x04])
 }
 
-fn extract_zip(file_name: String) -> Result<(), ZipError> {
-    let file = fs::File::open(&file_name).unwrap();
+fn extract_zip(zip_path: &Path) -> Result<(), ZipError> {
+    let file = fs::File::open(zip_path).unwrap();
     let mut archive = zip::ZipArchive::new(file)?;
+    // Extract alongside the zip (strip the extension to get the output dir)
+    let out_dir = zip_path.with_extension("");
 
     for i in 0..archive.len() {
-        let mut file = archive.by_index(i).unwrap();
-        let file_enclosed_name = match file.enclosed_name() {
-            Some(path) => path,
+        let mut entry = archive.by_index(i).unwrap();
+
+        let relative = match entry.enclosed_name() {
+            Some(p) => p,
             None => continue,
         };
 
-        {
-            let comment = file.comment();
-            if !comment.is_empty() {
-                tracing::info!("File {i} comment: {comment}");
-            }
+        let outpath = out_dir.join(relative);
+
+        if !entry.comment().is_empty() {
+            tracing::info!("Entry {i} comment: {}", entry.comment());
         }
 
-        let fullpath = std::path::Path::new(&file_name);
-        let outpath = fullpath.with_extension("").join(file_enclosed_name);
-        if file.is_dir() {
-            tracing::info!("File {} extracted to \"{}\"", i, outpath.display());
+        if entry.is_dir() {
+            tracing::info!("Extracting dir  {} → {}", i, outpath.display());
             fs::create_dir_all(&outpath).unwrap();
         } else {
             tracing::info!(
-                "File {} extracted to \"{}\" ({} bytes)",
+                "Extracting file {} → {} ({} bytes)",
                 i,
                 outpath.display(),
-                file.size()
+                entry.size()
             );
-            if let Some(p) = outpath.parent() {
-                if !p.exists() {
-                    fs::create_dir_all(p).unwrap();
+            if let Some(parent) = outpath.parent() {
+                if !parent.exists() {
+                    fs::create_dir_all(parent).unwrap();
                 }
             }
             let mut outfile = fs::File::create(&outpath).unwrap();
-            io::copy(&mut file, &mut outfile).unwrap();
+            io::copy(&mut entry, &mut outfile).unwrap();
         }
 
-        // Get and Set permissions
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
-
-            if let Some(mode) = file.unix_mode() {
+            if let Some(mode) = entry.unix_mode() {
                 fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).unwrap();
             }
         }
     }
+
     Ok(())
 }
