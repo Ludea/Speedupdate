@@ -252,11 +252,10 @@ async fn write_field(
     Ok(())
 }
 
-/// After writing a file to disk: if it is a zip archive, extract then delete it.
 async fn post_process(file_path: &Path) -> Result<(), SpeedupdateServerError> {
     sleep(Duration::from_secs(2)).await;
 
-    if is_zip_file(file_path)? == true {
+    if is_zip_file(file_path)? {
         extract_zip(file_path)?;
         fs::remove_file(file_path)?;
     }
