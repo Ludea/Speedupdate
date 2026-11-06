@@ -5,7 +5,7 @@ updates:
     schedule:
       interval: "daily"
     groups:
-      rust-deps:
+      all:
         patterns:
           - "*"
           
@@ -14,6 +14,6 @@ updates:
     schedule:
       interval: "daily"
     groups:
-      github-actions:
+      all:
         patterns:
           - "*"
