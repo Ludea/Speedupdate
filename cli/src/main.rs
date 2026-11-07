@@ -20,7 +20,7 @@ struct Logger {
 
 impl Logger {
     const fn new() -> Self {
-        Self { pb: parking_lot::const_rwlock(None), filter: parking_lot::const_rwlock(None) }
+        Self { pb: parking_lot::RwLock::new(None), filter: parking_lot::RwLock::new(None) }
     }
 
     fn init(&self) {
