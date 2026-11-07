@@ -212,9 +212,9 @@ jobs:
         include:
           - platform: ubuntu-latest
             target: linux_amd64
-          - platform: macos-13
+          - platform: macos-15-intel
             target: macos_x86_64
-          - platform: macos-14
+          - platform: macos-15
             target: macos_aarch64
           - platform: windows-2022
             target: windows_x86_64
