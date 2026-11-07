@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     convert::Infallible,
     fs,
     future::ready,
@@ -92,6 +93,13 @@ pub fn http_api() -> Router {
     Router::new()
         .route("/health", get(health_check))
         .route("/metrics", get(move || ready(recorder_handle.render())))
+        .route(
+            "/plugins",
+            post({
+                let progress_tx = progress_tx.clone();
+                move |headers, multipart| save_plugins(progress_tx.clone(), headers, multipart)
+            }),
+        )
         .route(
             "/{repo}/{type}/binaries/{platform}",
             post({
@@ -329,6 +337,66 @@ fn extract_zip(zip_path: &Path) -> Result<(), SpeedupdateServerError> {
             use std::os::unix::fs::PermissionsExt;
             if let Some(mode) = entry.unix_mode() {
                 fs::set_permissions(&outpath, fs::Permissions::from_mode(mode)).unwrap();
+            }
+        }
+    }
+
+    Ok(())
+}
+
+async fn save_plugins(
+    progress_tx: Sender<(usize, usize)>,
+    headers: HeaderMap,
+    multipart: Multipart,
+) -> Result<(), SpeedupdateServerError> {
+    let upload_dir = PathBuf::from("plugins");
+
+    fs::create_dir_all(&upload_dir)?;
+
+    let total_size = parse_content_length(&headers)?;
+
+    upload_plugin_files(progress_tx, multipart, total_size, &upload_dir).await
+}
+
+async fn upload_plugin_files(
+    progress_tx: Sender<(usize, usize)>,
+    mut multipart: Multipart,
+    total_size: usize,
+    upload_dir: &Path,
+) -> Result<(), SpeedupdateServerError> {
+    let mut uploaded = HashSet::new();
+
+    while let Some(mut field) = multipart.next_field().await? {
+        let file_name =
+            field.file_name().ok_or(SpeedupdateServerError::MissingFileName)?.to_string();
+
+        let path = Path::new(&file_name);
+
+        if path.file_name().and_then(|name| name.to_str()) != Some(&file_name) {
+            return Err(SpeedupdateServerError::MissingFileName);
+        }
+
+        let extension = path.extension().and_then(|ext| ext.to_str());
+
+        if !matches!(extension, Some("zip" | "minisig")) {
+            return Err(SpeedupdateServerError::MissingFileName);
+        }
+
+        let file_path = upload_dir.join(&file_name);
+
+        write_field(&mut field, &file_path, &progress_tx, total_size).await?;
+
+        tracing::info!("Plugin file uploaded: {}", file_name);
+
+        uploaded.insert(file_name);
+    }
+
+    for file in &uploaded {
+        if file.ends_with(".zip") {
+            let signature = format!("{file}.minisig");
+
+            if !uploaded.contains(&signature) {
+                tracing::warn!("Missing signature for plugin: {file}");
             }
         }
     }
