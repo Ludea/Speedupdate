@@ -54,16 +54,16 @@ jobs:
 #      run: cd cli && cargo aur
     - name: Rename bin
       run: |
-        mv target/x86_64-unknown-linux-musl/release/speedupdate target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
-        mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
+        mv target/x86_64-unknown-linux-musl/release/speedupdate target/x86_64-unknown-linux-musl/release/speedupdate_${{ github.ref_name }}_linux_amd64
+        mv target/x86_64-unknown-linux-musl/release/speedupdateserver target/x86_64-unknown-linux-musl/release/speedupdateserver_${{ github.ref_name }}_linux_amd64
     - name: Upload artifacts
       uses: actions/upload-artifact@v7
       with:
-        name: speedupdate-${{ github.ref_name }}_linux_amd64
+        name: speedupdate_${{ github.ref_name }}_linux_amd64
         if-no-files-found: error
         path: |
-          target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
-          target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
+          target/x86_64-unknown-linux-musl/release/speedupdate_${{ github.ref_name }}_linux_amd64
+          target/x86_64-unknown-linux-musl/release/speedupdateserver_${{ github.ref_name }}_linux_amd64
           target/x86_64-unknown-linux-musl/debian/*.deb
           target/x86_64-unknown-linux-musl/generate-rpm/*.rpm
     - name: Upload file into Release page
@@ -72,8 +72,8 @@ jobs:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
         files: |
-          target/x86_64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_amd64
-          target/x86_64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_amd64
+          target/x86_64-unknown-linux-musl/release/speedupdate_${{ github.ref_name }}_linux_amd64
+          target/x86_64-unknown-linux-musl/release/speedupdateserver_${{ github.ref_name }}_linux_amd64
           target/x86_64-unknown-linux-musl/debian/*.deb
           target/x86_64-unknown-linux-musl/generate-rpm/*.rpm
     - name: Upload speedupdate deb to Cloudsmith
@@ -147,24 +147,24 @@ jobs:
  #       cargo deb -p speedupdateserver --target aarch64-unknown-linux-musl --no-build
     - name: Rename artifacts
       run: |
-        mv target/aarch64-unknown-linux-musl/release/speedupdate target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
-        mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
+        mv target/aarch64-unknown-linux-musl/release/speedupdate target/aarch64-unknown-linux-musl/release/speedupdate_${{ github.ref_name }}_linux_arm64
+        mv target/aarch64-unknown-linux-musl/release/speedupdateserver target/aarch64-unknown-linux-musl/release/speedupdateserver_${{ github.ref_name }}_linux_arm64
     - name: Upload artifacts
       uses: actions/upload-artifact@v7
       with:
         name: speedupdate-${{ github.ref_name }}_linux_arm64
         if-no-files-found: error
         path: |
-          target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
-          target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
+          target/aarch64-unknown-linux-musl/release/speedupdate_${{ github.ref_name }}_linux_arm64
+          target/aarch64-unknown-linux-musl/release/speedupdateserver_${{ github.ref_name }}_linux_arm64
     - name: Upload file into Release page
       uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
         files: |
-          target/aarch64-unknown-linux-musl/release/speedupdate-${{ github.ref_name }}_linux_arm64
-          target/aarch64-unknown-linux-musl/release/speedupdateserver-${{ github.ref_name }}_linux_arm64
+          target/aarch64-unknown-linux-musl/release/speedupdate_${{ github.ref_name }}_linux_arm64
+          target/aarch64-unknown-linux-musl/release/speedupdateserver_${{ github.ref_name }}_linux_arm64
  #         target/aarch64-unknown-linux-musl/debian/*.deb
 
   build-images:
@@ -177,8 +177,8 @@ jobs:
         pattern: speedupdate-*
     - name: Move binaries into parent folder
       run: |
-        mv speedupdate-${{ github.ref_name }}_linux_amd64/release/speedupdate-${{ github.ref_name }}_linux_amd64 speedupdate-${{ github.ref_name }}_linux_amd64/speedupdate-${{ github.ref_name }}_linux_amd64
-        mv speedupdate-${{ github.ref_name }}_linux_amd64/release/speedupdateserver-${{ github.ref_name }}_linux_amd64 speedupdate-${{ github.ref_name }}_linux_amd64/speedupdateserver-${{ github.ref_name }}_linux_amd64
+        mv speedupdate_${{ github.ref_name }}_linux_amd64/release/speedupdate_${{ github.ref_name }}_linux_amd64 speedupdate_${{ github.ref_name }}_linux_amd64/speedupdate_${{ github.ref_name }}_linux_amd64
+        mv speedupdate_${{ github.ref_name }}_linux_amd64/release/speedupdateserver_${{ github.ref_name }}_linux_amd64 speedupdate_${{ github.ref_name }}_linux_amd64/speedupdateserver_${{ github.ref_name }}_linux_amd64
     - name: extract version without "v"
       run: |
         CONTAINER_TAG="${{ github.ref_name }}"
@@ -228,18 +228,18 @@ jobs:
     - name: add tags to Windows binaries
       if: matrix.platform == 'windows-2022'
       run: |
-        mv target/release/speedupdate.exe target/release/speedupdate-${{ github.ref_name }}_x86_64.exe
-        mv target/release/speedupdateserver.exe target/release/speedupdateserver-${{ github.ref_name }}_x86_64.exe
+        mv target/release/speedupdate.exe target/release/speedupdate_${{ github.ref_name }}_x86_64.exe
+        mv target/release/speedupdateserver.exe target/release/speedupdateserver_${{ github.ref_name }}_x86_64.exe
     - name: add tags to macOS binaries
       if: matrix.platform == 'macos-14' || matrix.platform == 'macos-13'
       run: |
-        mv target/release/speedupdate target/release/speedupdate-${{ github.ref_name }}_${{ matrix.target }}
-        mv target/release/speedupdateserver target/release/speedupdateserver-${{ github.ref_name }}_${{ matrix.target }}
+        mv target/release/speedupdate target/release/speedupdate_${{ github.ref_name }}_${{ matrix.target }}
+        mv target/release/speedupdateserver target/release/speedupdateserver_${{ github.ref_name }}_${{ matrix.target }}
     - name: Upload file
       uses: softprops/action-gh-release@v3
       with:
         tag_name: ${{ github.ref_name }}
         name: Speedupdate ${{ github.ref_name }}
         files: |
-          target/release/speedupdate-${{ github.ref_name }}_*
-          target/release/speedupdateserver-${{ github.ref_name }}_*
+          target/release/speedupdate_${{ github.ref_name }}_*
+          target/release/speedupdateserver_${{ github.ref_name }}_*
